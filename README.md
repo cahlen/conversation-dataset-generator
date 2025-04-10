@@ -1,6 +1,6 @@
 # Conversation Dataset Generator ✨
 
-[![Conversation Icon](https://upload.wikimedia.org/wikipedia/commons/1/1e/Speech_bubble_icon.svg)](https://github.com/cahlen/conversation-dataset-generator) | [View Project Page](https://cahlen.github.io/conversation-dataset-generator/) | [View on GitHub](https://github.com/cahlen/conversation-dataset-generator)
+<a href="https://github.com/cahlen/conversation-dataset-generator"><img src="https://upload.wikimedia.org/wikipedia/commons/1/1e/Speech_bubble_icon.svg" alt="Conversation Icon" width="40"></a> | [View Project Page](https://cahlen.github.io/conversation-dataset-generator/) | [View on GitHub](https://github.com/cahlen/conversation-dataset-generator)
 
 *Craft High-Quality Dialogue Data for Your LLMs.*
 
