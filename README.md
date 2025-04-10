@@ -60,6 +60,7 @@ python generate.py \
   --output-file sitcom_style_dataset.jsonl \
   --model-id meta-llama/Meta-Llama-3-8B-Instruct
 ```
+
 *Explanation: High volume (`--num-examples 1000`), consistent detailed parameters (especially `--style` and descriptive personas) focus the data on the target style.*
 
 ---
@@ -82,6 +83,7 @@ python generate.py \
   --output-file mentor_persona_dataset.jsonl \
   --model-id meta-llama/Meta-Llama-3-8B-Instruct
 ```
+
 *Explanation: Focus is on detailed `--persona1-desc` capturing the desired mentor traits (patience, guiding questions) and a supportive `--style` to shape the mentor's voice.*
 
 ---
@@ -104,6 +106,7 @@ python generate.py \
   --output-file quantum_topic_dataset.jsonl \
   --model-id meta-llama/Meta-Llama-3-8B-Instruct
 ```
+
 *Explanation: Teaches the *conversational flow* of explaining the specific `--topic`, reinforced by simplifying personas, analogy-driven descriptions, and style.*
 
 ---
@@ -126,6 +129,7 @@ python generate.py \
   --output-file instruction_adherence_dataset.jsonl \
   --model-id meta-llama/Meta-Llama-3-8B-Instruct
 ```
+
 *Explanation: Training on data where specific `--include-points` were required reinforces the model's ability to follow constraints within a natural dialogue structure.*
 
 ---
@@ -148,6 +152,7 @@ python generate.py \
   --output-file scifi_scene_dialogue.jsonl \
   --model-id meta-llama/Meta-Llama-3-8B-Instruct
 ```
+
 *Explanation: All parameters work together to create dialogue for a specific fictional moment. Lower `--num-examples` is suitable for drafting multiple variations of the scene.*
 
 ---
@@ -170,6 +175,7 @@ python generate.py \
   --model-id meta-llama/Meta-Llama-3-8B-Instruct \
   --upload-to-hub YourUser/VariedHistoricalDebate
 ```
+
 *Explanation: The script uses the LLM to interpret the `--creative-brief`, generate initial detailed parameters (personas, topic, etc.). Then, for each of the 25 examples, it generates a *new, related* topic/scenario (e.g., discussing specific inventions, the ethics of science, the role of observation) while keeping the da Vinci/Curie personas consistent.*
 
 ---
@@ -186,6 +192,7 @@ python generate.py \
   --persona2-search-term "Stanley Kubrick filmmaker personality directing style meticulous" \
   --output-file mkbhd_kubrick_web_terms_5.jsonl
 ```
+
 *Explanation: The script uses the LLM for the overall brief interpretation and topic variation. However, it uses the provided `--personaX-search-term` arguments to fetch context from DuckDuckGo. This context helps the LLM generate more accurate `--personaX-desc` arguments, enabling conversations involving specific individuals the base model might not know well.*
 
 ---
@@ -201,6 +208,7 @@ python generate.py \
   --output-file brief_fantasy_talk.jsonl \
   --validate-local-save
 ```
+
 *Explanation: The script generates initial parameters from the brief, then varies the topic/scenario (e.g., explaining different types of magic, the cost of spells, magical artifacts vs. forged items) for each of the 50 examples, keeping the dragon and dwarf personas.*
 
 ---
@@ -215,6 +223,7 @@ python generate.py \
   --num-examples 10 \
   --output-file brief_toaster_pigeons.jsonl
 ```
+
 *Explanation: Perfect for highly imaginative scenarios! The script generates varied crumb-related topics/scenarios (e.g., the futility of sweeping, the beauty of decay, pigeons judging bread types) for the toaster and pigeons across 10 examples.*
 
 ---
@@ -230,6 +239,7 @@ python generate.py \
   --output-file brief_noir_interrogation.jsonl \
   --model-id meta-llama/Meta-Llama-3-8B-Instruct
 ```
+
 *Explanation: The `--creative-brief` provides strong genre cues (hardboiled detective, nervous informant, smoky alley). The LLM generates appropriate personas, topics, scenarios, and a noir style, varying the specifics (e.g., the nature of the artifact, the informant's specific fear) across the examples.*
 
 ---
@@ -247,6 +257,7 @@ python generate.py \
   --output-file hopper_judd_web_search.jsonl \
   --model-id meta-llama/Meta-Llama-3-8B-Instruct
 ```
+
 *Explanation: The brief sets the stage. The `--personaX-search-term` arguments guide the LLM's argument generation step by providing specific web context for Grace Hopper and Donald Judd, helping capture their distinct personalities and fields, even if they aren't strongly represented in the base model's training.*
 
 ---
@@ -264,6 +275,7 @@ python generate.py \
   --output-file clippy_marvin_web_search.jsonl \
   --model-id meta-llama/Meta-Llama-3-8B-Instruct
 ```
+
 *Explanation: Similar to the historical example, the brief provides the core idea, while the `--personaX-search-term` arguments provide specific context scraped from the web about Clippy and Marvin, ensuring their iconic (and contrasting) personalities are captured accurately during the initial argument generation, leading to more authentic dialogue.*
 
 ---
@@ -273,11 +285,13 @@ python generate.py \
 Understanding where your data goes:
 
 1.  **Local File (`.jsonl`):** The script always saves the generated data locally first to the path specified by `--output-file`. This is a **JSON Lines** file: each line is a complete JSON object representing a single turn.
+
     ```json
     {"conversation_id": 0, "turn_number": 0, "role": "human", "speaker_name": "Alex", "topic": "the absurdity of everyday errands", "scenario": "waiting in line at the post office", "style": "observational, witty, fast-paced banter, slightly absurd, like Seinfeld", "include_points": "long lines, confusing forms, questionable package handling, passive aggression", "content": "Seriously, Sam, look at this line. Is time moving slower in here? Are we in some kind of bureaucratic vortex?"}
     {"conversation_id": 0, "turn_number": 1, "role": "gpt", "speaker_name": "Sam", "topic": "the absurdity of everyday errands", "scenario": "waiting in line at the post office", "style": "observational, witty, fast-paced banter, slightly absurd, like Seinfeld", "include_points": "long lines, confusing forms, questionable package handling, passive aggression", "content": "Only if the vortex requires triplicate forms for entry. And possibly a blood sample. Did you fill out the 7B/Stroke-6 form for *existing* in the line?"}
     {"conversation_id": 1, "turn_number": 0, "role": "human", "speaker_name": "Alex", "topic": "the existential dread of choosing coffee beans", "scenario": "staring blankly at a shelf in a grocery store", "style": "observational, witty, fast-paced banter, slightly absurd, like Seinfeld", "include_points": "origin, roast level, ethical sourcing, paralysis by analysis", "content": "Single origin Ethiopian Yirgacheffe... or the house blend... medium roast... dark roast... Sam, how do people *choose*?"}
     ```
+
     Each row has the following keys:
 
     *   `conversation_id` (int64): Identifier grouping turns within the dataset (0-indexed).
@@ -326,29 +340,35 @@ Get up and running:
     git clone https://github.com/cahlen/conversation-dataset-generator.git
     cd conversation-dataset-generator
     ```
+
 2.  **Create & Activate Virtual Environment (Recommended):**
     ```bash
     python3 -m venv venv
     source venv/bin/activate # On Windows use `venv\Scripts\activate`
     ```
+
 3.  **Install Dependencies:**
     ```bash
     pip install -r requirements.txt
     ```
     *(Note: If `torch` is in requirements.txt, pip might install a CPU or older CUDA version. For optimal GPU usage, consider installing PyTorch separately first, matching your CUDA version - see step 4).*
+
 4.  **Install Specific PyTorch Version (Optional but Recommended for GPU):**
     For specific CUDA versions, install PyTorch *after* other dependencies:
     ```bash
     # Example for CUDA 12.1 (Check official PyTorch site for your version)
     pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
     # Find the command for your specific CUDA version:
     # https://pytorch.org/get-started/locally/
     ```
     *(Ensure your NVIDIA driver version supports your chosen CUDA version!)*
+
 5.  **Install Optional `bitsandbytes` (for LoRA example):**
     ```bash
     pip install bitsandbytes
     ```
+
 6.  **Login to Hugging Face Hub (Optional, for uploading):**
     To use `--upload-to-hub`, log in via the terminal:
     ```bash
@@ -394,6 +414,7 @@ Two ways to generate:
                        --style "Comedic, bickering, contrasting personalities" \
                        --num-examples 10 --output-file manual_test.jsonl
     ```
+
 2.  **Creative Brief Mode (with Topic Variation & Optional Web Search):**
     ```bash
     # Without web search
