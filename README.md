@@ -132,8 +132,8 @@ To get a local copy up and running follow these simple steps.
 4.  **Install Specific PyTorch Version (Optional but Recommended for GPU):**
     Install PyTorch *after* other dependencies, matching your CUDA setup. Find the correct command for your system on the [official PyTorch website](https://pytorch.org/get-started/locally/).
     ```bash
-    # Example for CUDA 12.1
-    pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+    # Example for CUDA 12.8
+    pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu118
     ```
     *Ensure your NVIDIA driver version supports your chosen CUDA version!*
 5.  **Install Optional Dependencies:**
