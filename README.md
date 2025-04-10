@@ -467,3 +467,7 @@ Tailor your generation precisely. Provide EITHER `--creative-brief` OR the set o
 *   `--validate-local-save`: Perform basic checks on the locally saved `.jsonl` file after writing. (Currently placeholder, no checks implemented). (Default: False)
 
 **LoRA Training Example Dependencies:** The LoRA example shown in the generated README requires additional libraries: `peft`, `trl`, `bitsandbytes`. Install them with `pip install -U peft trl bitsandbytes`.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
