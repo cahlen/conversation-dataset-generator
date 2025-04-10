@@ -467,16 +467,3 @@ Tailor your generation precisely. Provide EITHER `--creative-brief` OR the set o
 *   `--validate-local-save`: Perform basic checks on the locally saved `.jsonl` file after writing. (Currently placeholder, no checks implemented). (Default: False)
 
 **LoRA Training Example Dependencies:** The LoRA example shown in the generated README requires additional libraries: `peft`, `trl`, `bitsandbytes`. Install them with `pip install -U peft trl bitsandbytes`.
-
-```python
-print("Starting LoRA training...")
-trainer.train()
-```
-
-### 7. Save the LoRA adapter
-# Use the same directory as defined in TrainingArguments
-```python
-adapter_output_dir = training_args.output_dir
-trainer.save_model(adapter_output_dir) 
-print(f"LoRA adapter saved to {adapter_output_dir}")
-```
