@@ -5,7 +5,7 @@ import argparse
 import json
 import re # Import regex module
 import torch
-from transformers import pipeline, AutoTokenizer # Use HF pipeline
+from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig # Use HF pipeline and add model/quantization imports
 import logging
 import os # Import os for path manipulation
 from huggingface_hub import login, HfApi, HfFolder # Import necessary hub utilities
@@ -552,6 +552,7 @@ if __name__ == "__main__":
     general_group.add_argument('--model-id', type=str, default='meta-llama/Meta-Llama-3-8B-Instruct', help='Hugging Face model ID for ALL generation tasks.')
     general_group.add_argument('--max-new-tokens', type=int, default=768, help='Max new tokens for the conversation generation step.')
     general_group.add_argument('--upload-to-hub', type=str, default=None, metavar='USERNAME/REPO_ID', help='Optional: Repository ID to upload the dataset to on Hugging Face Hub. Requires prior login.')
+    general_group.add_argument('--load-in-4bit', action='store_true', help='Enable 4-bit quantization (NF4) for model loading to reduce memory and potentially speed up inference. Requires `bitsandbytes`.')
     general_group.add_argument('--force-upload', action='store_true', help='Force upload to Hugging Face Hub without interactive confirmation.')
     general_group.add_argument('--validate-local-save', action='store_true', help='Load dataset back from local disk after saving for basic validation.')
 
@@ -608,19 +609,67 @@ if __name__ == "__main__":
     tokenizer = None
     model_load_start_time = time.monotonic()
     model_loaded = False
-    
+    model = None # Initialize model variable
+
     # --- Load Model --- (Load once for all generation modes)
-    logging.info(f"Loading tokenizer and model: {args.model_id} (used for arg/conversation generation)")
+    logging.info(f"Loading tokenizer: {args.model_id}")
     try:
         tokenizer = AutoTokenizer.from_pretrained(args.model_id)
         if tokenizer.pad_token is None: tokenizer.pad_token = tokenizer.eos_token
-        text_generator = pipeline("text-generation", model=args.model_id, tokenizer=tokenizer, device_map="auto", torch_dtype=torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16, trust_remote_code=True)
+
+        if args.load_in_4bit:
+            logging.info(f"Loading model: {args.model_id} with 4-bit quantization (NF4)")
+            # Define quantization config
+            quantization_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16,
+                bnb_4bit_use_double_quant=False # Optional, can be True for slightly more accuracy at cost of VRAM
+            )
+            model = AutoModelForCausalLM.from_pretrained(
+                args.model_id,
+                quantization_config=quantization_config,
+                device_map="auto", # Accelerate handles placement
+                trust_remote_code=True
+            )
+            logging.info("Model loaded with 4-bit quantization.")
+        else:
+            logging.info(f"Loading model: {args.model_id} with default precision (bf16/fp16)")
+            model = AutoModelForCausalLM.from_pretrained(
+                args.model_id,
+                torch_dtype=torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16,
+                device_map="auto",
+                trust_remote_code=True
+            )
+            logging.info("Model loaded with default precision.")
+
+        # Now create the pipeline using the pre-loaded model and tokenizer
+        logging.info("Creating text-generation pipeline...")
+        text_generator = pipeline(
+            "text-generation",
+            model=model, # Pass the loaded model object
+            tokenizer=tokenizer,
+            # device_map is implicitly handled by the loaded model's device map
+            # torch_dtype is implicitly handled by the loaded model's dtype
+        )
+
         model_load_end_time = time.monotonic()
-        logging.info(f"Tokenizer and model pipeline loaded successfully (took {model_load_end_time - model_load_start_time:.2f}s).")
+        logging.info(f"Tokenizer and model pipeline created successfully (took {model_load_end_time - model_load_start_time:.2f}s). Using 4-bit: {args.load_in_4bit}")
         model_loaded = True
+    except ImportError as ie:
+        # Specific error if bitsandbytes is missing and 4bit was requested
+        if args.load_in_4bit and 'bitsandbytes' in str(ie).lower():
+            logging.error("Failed to load model: The --load-in-4bit flag requires the 'bitsandbytes' library.")
+            logging.error("Please install it: pip install bitsandbytes")
+        else:
+            logging.error(f"Failed to load tokenizer/model due to missing import: {ie}")
+        sys.exit(1)
     except Exception as e:
         model_load_end_time = time.monotonic()
         logging.error(f"Failed to load tokenizer/model: {e} (attempt took {model_load_end_time - model_load_start_time:.2f}s)")
+        # Print traceback for detailed debugging
+        import traceback
+        logging.error(traceback.format_exc())
         sys.exit(1)
 
     # --- Proceed with Generation --- 

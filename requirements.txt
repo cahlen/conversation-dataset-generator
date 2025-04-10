@@ -1,5 +1,10 @@
+torch
 transformers
 accelerate
-huggingface_hub
 datasets
+huggingface_hub
+pandas
 duckduckgo-search
+peft
+trl
++bitsandbytes

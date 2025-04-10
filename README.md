@@ -254,6 +254,7 @@ Tailor your generation precisely. Provide EITHER `--creative-brief` OR the set o
 *   `--upload-to-hub STR`: Your Hugging Face Hub repository ID (e.g., `YourUsername/YourDatasetName`) to upload the results to. The script will create the repo if it doesn't exist. Requires prior login. (Default: None)
 *   `--force-upload`: Skip the confirmation prompt when uploading to the Hub. Use with caution! (Default: False)
 *   `--validate-local-save`: Perform basic checks on the locally saved `.jsonl` file after writing. (Currently placeholder, no checks implemented). (Default: False)
+*   `--load-in-4bit`: Enable 4-bit quantization (NF4) using `bitsandbytes` for model loading. Reduces memory usage and can speed up inference, especially on consumer GPUs. Requires the `bitsandbytes` library to be installed. (Default: False)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -548,6 +549,7 @@ Leveraging the generated data:
 *   **LoRA Benefits:** Smaller footprint, faster training, modular (mix and match adapters!), easily shareable.
 *   **Base Models:** For best results when fine-tuning, start with strong instruction-following base models like Llama 3 Instruct, Mistral Instruct, Mixtral Instruct, Qwen2 Instruct, Gemma Instruct, etc.
 *   **LoRA Training Example Dependencies:** If you plan to train LoRAs based on examples, note the required libraries: `peft`, `trl`, `bitsandbytes`. Install them with `pip install -U peft trl bitsandbytes`.
+*   **4-bit Quantization Dependency:** Using the `--load-in-4bit` flag requires the `bitsandbytes` library. Install it with `pip install bitsandbytes`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
