@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversation Dataset Generator ✨</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Source+Code+Pro&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+        
+        .code-font {
+            font-family: 'Source Code Pro', monospace;
+        }
+        
+        .gradient-text {
+            background: linear-gradient(90deg, #6366f1, #8b5cf6);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        }
+        
+        .dialog-bubble {
+            position: relative;
+            border-radius: 1rem;
+            padding: 1rem;
+            margin: 1rem 0;
+            max-width: 80%;
+        }
+        
+        .dialog-bubble:after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 0;
+            border: 10px solid transparent;
+        }
+        
+        .human-bubble {
+            background-color: #e0e7ff;
+            align-self: flex-start;
+        }
+        
+        .human-bubble:after {
+            border-right-color: #e0e7ff;
+            border-left: 0;
+            left: -10px;
+            top: 15px;
+        }
+        
+        .ai-bubble {
+            background-color: #ede9fe;
+            align-self: flex-end;
+        }
+        
+        .ai-bubble:after {
+            border-left-color: #ede9fe;
+            border-right: 0;
+            right: -10px;
+            top: 15px;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .example-card {
+            transition: all 0.2s ease;
+            border-left: 4px solid transparent;
+        }
+        
+        .example-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-left-color: #6366f1;
+        }
+        
+        .tooltip {
+            position: relative;
+        }
+        
+        .tooltip-text {
+            visibility: hidden;
+            width: 200px;
+            background-color: #1e293b;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        .animate-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- Header -->
+        <header class="mb-12">
+            <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center space-x-4">
+                    <div class="gradient-bg p-3 rounded-xl shadow-lg">
+                        <i class="fas fa-comments text-white text-3xl"></i>
+                    </div>
+                    <h1 class="text-4xl font-bold">
+                        <span class="gradient-text">Conversation Dataset Generator</span> 
+                        <span class="text-indigo-500">✨</span>
+                    </h1>
+                </div>
+                <a href="https://github.com/cahlen/conversation-dataset-generator" class="bg-gray-900 hover:bg-gray-800 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors">
+                    <i class="fab fa-github"></i>
+                    <span>View on GitHub</span>
+                </a>
+            </div>
+            
+            <p class="text-xl text-slate-600 mb-6">
+                Craft High-Quality Dialogue Data for Your LLMs.
+            </p>
+            
+            <div class="gradient-bg rounded-xl p-6 text-white shadow-lg">
+                <div class="flex flex-col space-y-4 max-w-3xl mx-auto">
+                    <div class="dialog-bubble human-bubble">
+                        <div class="font-semibold text-indigo-800">Alex</div>
+                        <p class="text-gray-800">"Seriously, Sam, look at this line. Is time moving slower in here? Are we in some kind of bureaucratic vortex?"</p>
+                    </div>
+                    <div class="dialog-bubble ai-bubble">
+                        <div class="font-semibold text-violet-800">Sam</div>
+                        <p class="text-gray-800">"Only if the vortex requires triplicate forms for entry. And possibly a blood sample. Did you fill out the 7B/Stroke-6 form for existing in the line?"</p>
+                    </div>
+                </div>
+                <p class="text-center mt-4 text-indigo-100">Example dialogue generated by the tool</p>
+            </div>
+        </header>
+        
+        <!-- Overview Section -->
+        <section class="mb-16">
+            <h2 class="text-3xl font-bold mb-6 flex items-center">
+                <span class="gradient-text">Overview</span>
+                <span class="ml-2 text-indigo-400"><i class="fas fa-binoculars"></i></span>
+            </h2>
+            
+            <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+                <p class="mb-4 text-lg">Ever wish you could generate <span class="font-semibold text-indigo-600">just the right kind</span> of conversational data? Whether you're fine-tuning a Large Language Model (LLM) for a specific <span class="font-semibold text-purple-600">style</span> or <span class="font-semibold text-purple-600">persona</span>, need dialogue for a creative project, or want to explore complex <span class="font-semibold text-purple-600">topics</span> in a natural flow, the Conversation Dataset Generator is here to help!</p>
+                
+                <!-- Additional Conversation Example 1 -->
+                <div class="my-8 p-6 bg-indigo-50 rounded-xl">
+                    <div class="flex flex-col space-y-4 max-w-3xl mx-auto">
+                        <div class="dialog-bubble human-bubble">
+                            <div class="font-semibold text-indigo-800">QuantumGuru</div>
+                            <p class="text-gray-800">"Imagine a coin spinning in the air - it's both heads and tails until it lands. That's superposition!"</p>
+                        </div>
+                        <div class="dialog-bubble ai-bubble">
+                            <div class="font-semibold text-violet-800">CuriousChris</div>
+                            <p class="text-gray-800">"But how does that help with computing? My laptop doesn't have any spinning coins inside..."</p>
+                        </div>
+                    </div>
+                    <p class="text-center mt-2 text-indigo-600 text-sm">Example from quantum computing dataset</p>
+                </div>
+                
+                <div class="grid md:grid-cols-2 gap-6 mt-8">
+                    <div class="bg-indigo-50 rounded-lg p-6 border border-indigo-100">
+                        <h3 class="font-bold text-lg mb-3 text-indigo-800 flex items-center">
+                            <i class="fas fa-hand-pointer mr-2"></i> Manual Mode
+                        </h3>
+                        <p class="mb-3">Define the exact <span class="code-font bg-indigo-100 px-2 py-1 rounded">topic</span>, <span class="code-font bg-indigo-100 px-2 py-1 rounded">personas</span> (with descriptions!), <span class="code-font bg-indigo-100 px-2 py-1 rounded">scenario</span>, <span class="code-font bg-indigo-100 px-2 py-1 rounded">style</span>, and even specific <span class="code-font bg-indigo-100 px-2 py-1 rounded">keywords</span> to include.</p>
+                        <div class="bg-white p-3 rounded border border-indigo-200 code-font text-sm">
+                            python generate.py \<br>
+                            &nbsp;&nbsp;--topic "debugging Python errors" \<br>
+                            &nbsp;&nbsp;--persona1 "MentorBot" \<br>
+                            &nbsp;&nbsp;--persona1-desc "patient coding tutor" ...
+                        </div>
+                    </div>
+                    
+                    <div class="bg-purple-50 rounded-lg p-6 border border-purple-100">
+                        <h3 class="font-bold text-lg mb-3 text-purple-800 flex items-center">
+                            <i class="fas fa-lightbulb mr-2"></i> Brief Mode
+                        </h3>
+                        <p class="mb-3">Provide a high-level <span class="code-font bg-purple-100 px-2 py-1 rounded">creative-brief</span> and let the script use an LLM to brainstorm the detailed parameters <span class="font-semibold">for you</span>.</p>
+                        <div class="bg-white p-3 rounded border border-purple-200 code-font text-sm">
+                            python generate.py \<br>
+                            &nbsp;&nbsp;--creative-brief "Sherlock Holmes explains TikTok" \<br>
+                            &nbsp;&nbsp;--persona1-search-term "Sherlock personality" ...
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Additional Conversation Example 2 -->
+                <div class="my-8 p-6 bg-purple-50 rounded-xl">
+                    <div class="flex flex-col space-y-4 max-w-3xl mx-auto">
+                        <div class="dialog-bubble human-bubble">
+                            <div class="font-semibold text-indigo-800">Detective</div>
+                            <p class="text-gray-800">"Start talking, pal. The rain's washing away more than just footprints tonight."</p>
+                        </div>
+                        <div class="dialog-bubble ai-bubble">
+                            <div class="font-semibold text-violet-800">Informant</div>
+                            <p class="text-gray-800">"I-I don't know nothing! Just that the artifact... it wasn't meant for mortal hands. The boss, he... he changed after he touched it."</p>
+                        </div>
+                    </div>
+                    <p class="text-center mt-2 text-purple-600 text-sm">Example from noir-style dataset</p>
+                </div>
+                
+                <div class="mt-8 bg-white border border-gray-200 rounded-xl overflow-hidden">
+                    <div class="bg-gray-900 text-white px-4 py-3 flex items-center">
+                        <div class="flex space-x-2 mr-4">
+                            <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                            <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                            <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                        </div>
+                        <div class="code-font text-sm">Output Format (JSON Lines)</div>
+                    </div>
+                    <div class="p-4 overflow-x-auto">
+                        <pre class="code-font text-sm text-gray-800">{
+  "conversation_id": 0,
+  "turn_number": 0,
+  "role": "human",
+  "speaker_name": "Alex",
+  "topic": "the absurdity of everyday errands",
+  "scenario": "waiting in line at the post office",
+  "style": "observational, witty, fast-paced banter",
+  "include_points": "long lines, confusing forms",
+  "content": "Seriously, Sam, look at this line..."
+}</pre>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Why Use Section -->
+        <section class="mb-16">
+            <h2 class="text-3xl font-bold mb-6 flex items-center">
+                <span class="gradient-text">Why Use Conversation Dataset Generator?</span>
+                <span class="ml-2 text-indigo-400"><i class="fas fa-rocket"></i></span>
+            </h2>
+            
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100">
+                    <div class="w-12 h-12 gradient-bg rounded-lg flex items-center justify-center text-white mb-4">
+                        <i class="fas fa-paint-brush text-xl"></i>
+                    </div>
+                    <h3 class="font-bold text-lg mb-2 text-indigo-800">Style Specialization</h3>
+                    <p class="text-gray-600">Need an LLM that sounds like a pirate? A valley girl? Generate datasets with consistent styles to train models that master specific conversational nuances.</p>
+                </div>
+                
+                <div class="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100">
+                    <div class="w-12 h-12 gradient-bg rounded-lg flex items-center justify-center text-white mb-4">
+                        <i class="fas fa-user-tie text-xl"></i>
+                    </div>
+                    <h3 class="font-bold text-lg mb-2 text-indigo-800">Persona Embodiment</h3>
+                    <p class="text-gray-600">Build believable characters with distinct personalities. Use web search terms to generate accurate dialogue for niche or custom characters.</p>
+                </div>
+                
+                <div class="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100">
+                    <div class="w-12 h-12 gradient-bg rounded-lg flex items-center justify-center text-white mb-4">
+                        <i class="fas fa-comment-dots text-xl"></i>
+                    </div>
+                    <h3 class="font-bold text-lg mb-2 text-indigo-800">Topic Fluency</h3>
+                    <p class="text-gray-600">Enhance a model's ability to discuss particular topics within specific scenarios naturally. Generate dialogues that explore subjects from different angles.</p>
+                </div>
+                
+                <!-- Additional Conversation Example 3 -->
+                <div class="col-span-full my-8 p-6 bg-gray-50 rounded-xl">
+                    <div class="flex flex-col space-y-4 max-w-3xl mx-auto">
+                        <div class="dialog-bubble human-bubble">
+                            <div class="font-semibold text-indigo-800">MentorBot</div>
+                            <p class="text-gray-800">"Great job identifying the IndexError! Now, what happens if you add print statements before and after the line that's failing?"</p>
+                        </div>
+                        <div class="dialog-bubble ai-bubble">
+                            <div class="font-semibold text-violet-800">Learner</div>
+                            <p class="text-gray-800">"Oh! Then I could see exactly where it breaks... but wouldn't that make my code messy with all those prints?"</p>
+                        </div>
+                    </div>
+                    <p class="text-center mt-2 text-gray-600 text-sm">Example from coding mentor dataset</p>
+                </div>
+                
+                <div class="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100">
+                    <div class="w-12 h-12 gradient-bg rounded-lg flex items-center justify-center text-white mb-4">
+                        <i class="fas fa-tasks text-xl"></i>
+                    </div>
+                    <h3 class="font-bold text-lg mb-2 text-indigo-800">Instruction Adherence</h3>
+                    <p class="text-gray-600">Train models to better follow constraints by generating data where specific keywords should appear, improving ability to incorporate requirements.</p>
+                </div>
+                
+                <div class="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100">
+                    <div class="w-12 h-12 gradient-bg rounded-lg flex items-center justify-center text-white mb-4">
+                        <i class="fas fa-pen-fancy text-xl"></i>
+                    </div>
+                    <h3 class="font-bold text-lg mb-2 text-indigo-800">Creative Content</h3>
+                    <p class="text-gray-600">Break writer's block! Draft dialogue for scripts, podcasts, or stories by defining compelling personas, scenarios, and styles.</p>
+                </div>
+                
+                <div class="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100">
+                    <div class="w-12 h-12 gradient-bg rounded-lg flex items-center justify-center text-white mb-4">
+                        <i class="fas fa-project-diagram text-xl"></i>
+                    </div>
+                    <h3 class="font-bold text-lg mb-2 text-indigo-800">Dialogue Analysis</h3>
+                    <p class="text-gray-600">Study conversation progression with turn_number column, identifying patterns in openings, mid-dialogue shifts, or closings.</p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Examples Section -->
+        <section class="mb-16">
+            <h2 class="text-3xl font-bold mb-6 flex items-center">
+                <span class="gradient-text">Generating Data for Specific Goals</span>
+                <span class="ml-2 text-indigo-400"><i class="fas fa-lightbulb"></i></span>
+            </h2>
+            
+            <div class="mb-8">
+                <div class="flex border-b border-gray-200">
+                    <button onclick="switchTab('manual')" class="tab-button py-3 px-6 font-medium border-b-2 border-transparent hover:text-indigo-600 transition-colors active">Manual Mode</button>
+                    <button onclick="switchTab('brief')" class="tab-button py-3 px-6 font-medium border-b-2 border-transparent hover:text-indigo-600 transition-colors">Brief Mode</button>
+                </div>
+                
+                <div id="manual" class="tab-content active">
+                    <div class="space-y-6 mt-6">
+                        <!-- Example 1 -->
+                        <div class="example-card bg-white p-6 rounded-xl shadow-sm border-l-4 border-indigo-500">
+                            <div class="flex justify-between items-start mb-3">
+                                <h3 class="font-bold text-lg text-indigo-800">Training a "Sitcom Banter" Style LoRA</h3>
+                                <span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded-full">Style</span>
+                            </div>
+                            <p class="text-gray-600 mb-4">Create a LoRA that makes an LLM generate witty, observational dialogue reminiscent of a classic sitcom.</p>
+                            <div class="bg-gray-50 p-4 rounded code-font text-sm overflow-x-auto">
+                                python generate.py \<br>
+                                &nbsp;&nbsp;--num-examples 1000 \<br>
+                                &nbsp;&nbsp;--topic "the absurdity of everyday errands" \<br>
+                                &nbsp;&nbsp;--persona1 "Alex" --persona1-desc "slightly neurotic, prone to overthinking" \<br>
+                                &nbsp;&nbsp;--persona2 "Sam" --persona2-desc "laid-back, responds with dry wit" \<br>
+                                &nbsp;&nbsp;--scenario "waiting in line at the post office" \<br>
+                                &nbsp;&nbsp;--style "observational, witty, fast-paced banter, like Seinfeld" \<br>
+                                &nbsp;&nbsp;--output-file sitcom_style_dataset.jsonl
+                            </div>
+                        </div>
+                        
+                        <!-- Example 2 -->
+                        <div class="example-card bg-white p-6 rounded-xl shadow-sm border-l-4 border-purple-500">
+                            <div class="flex justify-between items-start mb-3">
+                                <h3 class="font-bold text-lg text-purple-800">Training a "Helpful Coding Mentor" Persona LoRA</h3>
+                                <span class="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">Persona</span>
+                            </div>
+                            <p class="text-gray-600 mb-4">Fine-tune a model to act as a patient, encouraging coding mentor.</p>
+                            <div class="bg-gray-50 p-4 rounded code-font text-sm overflow-x-auto">
+                                python generate.py \<br>
+                                &nbsp;&nbsp;--num-examples 500 \<br>
+                                &nbsp;&nbsp;--topic "debugging a common Python error" \<br>
+                                &nbsp;&nbsp;--persona1 "MentorBot" --persona1-desc "patient, knowledgeable Python tutor" \<br>
+                                &nbsp;&nbsp;--persona2 "Learner" --persona2-desc "beginner programmer feeling stuck" \<br>
+                                &nbsp;&nbsp;--scenario "working through a coding problem online" \<br>
+                                &nbsp;&nbsp;--style "supportive, clear, step-by-step" \<br>
+                                &nbsp;&nbsp;--output-file mentor_persona_dataset.jsonl
+                            </div>
+                        </div>
+                        
+                        <!-- Example 3 -->
+                        <div class="example-card bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-500">
+                            <div class="flex justify-between items-start mb-3">
+                                <h3 class="font-bold text-lg text-blue-800">Training a Topic-Focused LoRA ("Quantum Computing")</h3>
+                                <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">Topic</span>
+                            </div>
+                            <p class="text-gray-600 mb-4">Make the LLM more fluent when explaining complex topics conversationally.</p>
+                            <div class="bg-gray-50 p-4 rounded code-font text-sm overflow-x-auto">
+                                python generate.py \<br>
+                                &nbsp;&nbsp;--num-examples 750 \<br>
+                                &nbsp;&nbsp;--topic "basic concepts of quantum computing" \<br>
+                                &nbsp;&nbsp;--persona1 "QuantumGuru" --persona1-desc "expert simplifying with analogies" \<br>
+                                &nbsp;&nbsp;--persona2 "CuriousChris" --persona2-desc "intelligent but new to quantum" \<br>
+                                &nbsp;&nbsp;--scenario "casual conversation over coffee" \<br>
+                                &nbsp;&nbsp;--style "simplified, analogy-driven, patient" \<br>
+                                &nbsp;&nbsp;--output-file quantum_topic_dataset.jsonl
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="brief" class="tab-content">
+                    <div class="space-y-6 mt-6">
+                        <!-- Example 6 -->
+                        <div class="example-card bg-white p-6 rounded-xl shadow-sm border-l-4 border-yellow-500">
+                            <div class="flex justify-between items-start mb-3">
+                                <h3 class="font-bold text-lg text-yellow-800">Generating Varied Historical Banter</h3>
+                                <span class="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full">Variation</span>
+                            </div>
+                            <p class="text-gray-600 mb-4">Quickly generate diverse dialogue between consistent historical figures without defining all details manually.</p>
+                            <div class="bg-gray-50 p-4 rounded code-font text-sm overflow-x-auto">
+                                python generate.py \<br>
+                                &nbsp;&nbsp;--creative-brief "A debate between Leonardo da Vinci and Marie Curie" \<br>
+                                &nbsp;&nbsp;--num-examples 25 \<br>
+                                &nbsp;&nbsp;--output-file historical_debate.jsonl \<br>
+                                &nbsp;&nbsp;--upload-to-hub YourUser/VariedHistoricalDebate
+                            </div>
+                            
+                            <!-- Additional Conversation Example 4 -->
+                            <div class="mt-4 p-4 bg-yellow-50 rounded-lg">
+                                <div class="flex flex-col space-y-4">
+                                    <div class="dialog-bubble human-bubble">
+                                        <div class="font-semibold text-indigo-800">Leonardo</div>
+                                        <p class="text-gray-800">"Marie, your radium glows like the divine light in my paintings! But tell me, does its beauty come from the same mathematical harmony?"</p>
+                                    </div>
+                                    <div class="dialog-bubble ai-bubble">
+                                        <div class="font-semibold text-violet-800">Marie</div>
+                                        <p class="text-gray-800">"Mon ami, its glow comes from decay, not divinity. But you're right - the mathematics are beautiful, even in destruction."</p>
+                                    </div>
+                                </div>
+                                <p class="text-center mt-2 text-yellow-600 text-sm">Example from historical debate dataset</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Example 7 -->
+                        <div class="example-card bg-white p-6 rounded-xl shadow-sm border-l-4 border-green-500">
+                            <div class="flex justify-between items-start mb-3">
+                                <h3 class="font-bold text-lg text-green-800">Generating Dialogue with Web Search</h3>
+                                <span class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">Web Context</span>
+                            </div>
+                            <p class="text-gray-600 mb-4">Create dialogue involving specific individuals by providing web search terms for context.</p>
+                            <div class="bg-gray-50 p-4 rounded code-font text-sm overflow-x-auto">
+                                python generate.py \<br>
+                                &nbsp;&nbsp;--creative-brief "Conversation between MKBHD and Stanley Kubrick" \<br>
+                                &nbsp;&nbsp;--num-examples 5 \<br>
+                                &nbsp;&nbsp;--persona1-search-term "Marques Brownlee tech review style" \<br>
+                                &nbsp;&nbsp;--persona2-search-term "Stanley Kubrick film style" \<br>
+                                &nbsp;&nbsp;--output-file mkbhd_kubrick.jsonl
+                            </div>
+                        </div>
+                        
+                        <!-- Example 10 -->
+                        <div class="example-card bg-white p-6 rounded-xl shadow-sm border-l-4 border-red-500">
+                            <div class="flex justify-between items-start mb-3">
+                                <h3 class="font-bold text-lg text-red-800">Generating Specific Genre Dialogue (Noir)</h3>
+                                <span class="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full">Genre</span>
+                            </div>
+                            <p class="text-gray-600 mb-4">Quickly generate dialogue fitting a specific genre like Noir using only a brief.</p>
+                            <div class="bg-gray-50 p-4 rounded code-font text-sm overflow-x-auto">
+                                python generate.py \<br>
+                                &nbsp;&nbsp;--creative-brief "A detective interrogating an informant in a rainy alley" \<br>
+                                &nbsp;&nbsp;--num-examples 10 \<br>
+                                &nbsp;&nbsp;--output-file noir_interrogation.jsonl
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Technical Details Section -->
+        <section class="mb-16">
+            <h2 class="text-3xl font-bold mb-6 flex items-center">
+                <span class="gradient-text">Technical Details</span>
+                <span class="ml-2 text-indigo-400"><i class="fas fa-cogs"></i></span>
+            </h2>
+            
+            <div class="bg-white rounded-xl shadow-md p-6">
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div>
+                        <h3 class="font-bold text-xl mb-4 text-indigo-800 border-b pb-2">Requirements</h3>
+                        <ul class="space-y-3">
+                            <li class="flex items-start">
+                                <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                                <span>Python 3.8+</span>
+                            </li>
+                            <li class="flex items-start">
+                                <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                                <span>Key Libraries: <span class="code-font">torch</span>, <span class="code-font">transformers</span>, <span class="code-font">datasets</span>, <span class="code-font">huggingface_hub</span></span>
+                            </li>
+                            <li class="flex items-start">
+                                <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                                <span>Optional: <span class="code-font">duckduckgo-search</span> for web context</span>
+                            </li>
+                            <li class="flex items-start">
+                                <i class="fas fa-microchip text-blue-500 mt-1 mr-2"></i>
+                                <span>GPU recommended for faster generation</span>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h3 class="font-bold text-xl mb-4 text-indigo-800 border-b pb-2">Installation</h3>
+                        <div class="bg-gray-900 rounded-lg p-4 code-font text-gray-300 text-sm mb-4">
+                            <span class="text-green-400"># Clone repo</span><br>
+                            git clone https://github.com/cahlen/conversation-dataset-generator.git<br>
+                            cd conversation-dataset-generator<br><br>
+                            
+                            <span class="text-green-400"># Create virtual environment</span><br>
+                            python3 -m venv venv<br>
+                            source venv/bin/activate <span class="text-gray-500"># Windows: venv\Scripts\activate</span><br><br>
+                            
+                            <span class="text-green-400"># Install dependencies</span><br>
+                            pip install -r requirements.txt
+                        </div>
+                    </div>
+                </div>
+                
+                <h3 class="font-bold text-xl mt-8 mb-4 text-indigo-800 border-b pb-2">Basic Usage</h3>
+                
+                <div class="mb-6">
+                    <h4 class="font-semibold text-lg mb-2 text-purple-800">Manual Mode</h4>
+                    <div class="bg-gray-900 rounded-lg p-4 code-font text-gray-300 text-sm">
+                        python generate.py \<br>
+                        &nbsp;&nbsp;--persona1 "Wizard" --persona1-desc "Grumpy, old, mutters spells" \<br>
+                        &nbsp;&nbsp;--persona2 "Knight" --persona2-desc "Overly cheerful" \<br>
+                        &nbsp;&nbsp;--topic "polishing armor without magic" \<br>
+                        &nbsp;&nbsp;--scenario "dungeon waiting room" \<br>
+                        &nbsp;&nbsp;--num-examples 10 --output-file manual_test.jsonl
+                    </div>
+                </div>
+                
+                <div>
+                    <h4 class="font-semibold text-lg mb-2 text-purple-800">Brief Mode (with Web Search)</h4>
+                    <div class="bg-gray-900 rounded-lg p-4 code-font text-gray-300 text-sm">
+                        python generate.py \<br>
+                        &nbsp;&nbsp;--creative-brief "Tech Lead and Junior Dev discuss code reviews" \<br>
+                        &nbsp;&nbsp;--num-examples 10 \<br>
+                        &nbsp;&nbsp;--persona1-search-term "Tech Lead responsibilities personality" \<br>
+                        &nbsp;&nbsp;--persona2-search-term "Junior Developer challenges" \<br>
+                        &nbsp;&nbsp;--output-file brief_tech_review.jsonl
+                    </div>
+                </div>
+                
+                <!-- Additional Conversation Example 5 -->
+                <div class="mt-8 p-6 bg-gray-100 rounded-xl">
+                    <div class="flex flex-col space-y-4 max-w-3xl mx-auto">
+                        <div class="dialog-bubble human-bubble">
+                            <div class="font-semibold text-indigo-800">Sentient Toaster</div>
+                            <p class="text-gray-800">"You pigeons peck at crumbs without thought! But have you considered that each crumb represents a universe of possibilities?"</p>
+                        </div>
+                        <div class="dialog-bubble ai-bubble">
+                            <div class="font-semibold text-violet-800">Nihilistic Pigeon</div>
+                            <p class="text-gray-800">"Caw. It's bread. We eat it. The universe is meaningless. Pass the crumbs."</p>
+                        </div>
+                    </div>
+                    <p class="text-center mt-2 text-gray-600 text-sm">Example from absurdist comedy dataset</p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Call to Action -->
+        <section class="gradient-bg rounded-xl p-8 text-white shadow-lg mb-16">
+            <div class="max-w-3xl mx-auto text-center">
+                <h2 class="text-3xl font-bold mb-4">Ready to Generate Amazing Dialogue Datasets?</h2>
+                <p class="text-xl mb-6 text-indigo-100">Start crafting high-quality conversational data for your LLMs today!</p>
+                <a href="https://github.com/cahlen/conversation-dataset-generator" class="bg-white text-indigo-600 hover:bg-gray-100 px-6 py-3 rounded-lg font-semibold inline-flex items-center transition-colors">
+                    <i class="fab fa-github mr-2"></i>
+                    Get Started on GitHub
+                </a>
+            </div>
+        </section>
+    </div>
+    
+    <script>
+        function switchTab(tabId) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabId).classList.add('active');
+            
+            // Update active tab button styling
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('border-indigo-500', 'text-indigo-600');
+            });
+            
+            // Find the button that was clicked (this is a bit hacky)
+            const buttons = document.querySelectorAll('.tab-button');
+            for (let i = 0; i < buttons.length; i++) {
+                if (buttons[i].textContent.trim().toLowerCase().includes(tabId)) {
+                    buttons[i].classList.add('border-indigo-500', 'text-indigo-600');
+                    break;
+                }
+            }
+        }
+    </script>
+</body>
+</html>
