@@ -1208,9 +1208,7 @@ This dataset was generated using the Conversation Dataset Generator script avail
 *   **Number of Conversations Successfully Generated:** {num_successfully_generated}
 *   **Total Turns:** {total_turns}
 *   **Model ID:** `{args.model_id}`
-
-{generation_mode_desc}
-
+*   **Generation Mode:** {generation_mode_desc}
 *   **Topic:** `{final_topic}`
 *   **Scenario:** `{final_scenario}`
 *   **Style:** `{final_style}`
