@@ -641,10 +641,12 @@ Leveraging the generated data:
 <!-- ROADMAP -->
 ## Roadmap
 
-*   [ ] Implement `--validate-local-save` checks.
+*   [x] Add batch generation script (`batch_generate.py`) with YAML configuration. (Done)
+*   [x] Add various generation examples to documentation (Manual, Brief, Fixed Persona, Batch). (Done)
+*   [ ] Implement `--validate-local-save` checks (currently placeholder).
 *   [ ] Explore adding more sophisticated topic/scenario variation techniques.
 *   [ ] Add option for different output formats (e.g., conversational JSON).
-*   [ ] Add more generation examples to documentation.
+*   [ ] Improve error handling and reporting in the batch script.
 
 See the [open issues](https://github.com/cahlen/conversation-dataset-generator/issues) for a full list of proposed features (and known issues).
 
