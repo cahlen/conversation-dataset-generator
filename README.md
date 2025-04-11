@@ -81,6 +81,8 @@ Unlock the potential of your LLMs or accelerate your creative process! This scri
 *   **Creative Content Generation:** Break writer's block and draft dialogue for scripts, stories, etc.
 *   **Dialogue Flow Analysis:** Study conversation progression using the structured output.
 
+Best of all, the code is fully open source under the MIT license, giving you the freedom to use, modify, and extend it however you see fit!
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Built With
