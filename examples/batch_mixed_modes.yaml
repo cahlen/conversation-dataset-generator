@@ -1,0 +1,107 @@
+# examples/batch_mixed_modes.yaml
+# Demonstrates combining runs with different generation modes, models, and options.
+
+output_directory: "batch_output_mixed_v2"
+# final_output_file: "combined_mixed_modes_v2.jsonl" # REMOVED - Combining different personas is usually not desired
+# upload_repo can be defined globally or per run
+
+# Note: No global fixed_personas here as runs use different methods
+
+runs:
+  # Run 1: AI Engineers - Heated Debate - Fixed Persona Variation (Upload Enabled)
+  - id: "ai_engineer_debate_variation"
+    output_file: "ai_engineer_debate.jsonl"
+    num_examples: 7
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    load_in_4bit: true
+    enable_variation: true
+    fixed_personas:
+      persona1: "Dr. Evelyn Reed"
+      persona1_desc: "Lead ML architect, pragmatic, focused on scalability and production readiness. Speaks precisely, sometimes condescendingly. Uses business and engineering analogies."
+      persona2: "Ben Carter"
+      persona2_desc: "Young research scientist, brilliant but theoretical, pushes bleeding-edge ideas. Speaks quickly, passionately, sometimes gets frustrated and interrupts. Uses academic jargon."
+    initial_context:
+      topic: "Choosing between a complex new transformer architecture vs. a reliable older model for the next product release"
+      scenario: "Late night in the research lab office, surrounded by monitors and whiteboards covered in equations"
+      style: "Heated technical debate, professional but tense, interrupting, using jargon, competing priorities"
+      include_points: "inference latency, training cost, SOTA benchmarks, technical debt, A/B testing, maintainability, Occam's razor"
+    upload_repo: "YourUsername/AIEngineerDebate" # Example upload repo
+
+  # Run 2: Sci-Fi - Manual Mode (No Variation, No Upload, 4-bit)
+  - id: "scifi_manual_no_upload"
+    output_file: "scifi_lv426_manual.jsonl"
+    num_examples: 3 # Manual mode generates N examples of the exact same topic/scenario
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    load_in_4bit: true
+    manual_args:
+      persona1: "Captain Eva Rostova"
+      persona1_desc: "Experienced, cautious starship captain. Focused on procedure and crew safety. Speaks formally."
+      persona2: "Dr. Aris Thorne"
+      persona2_desc: "Brilliant but impulsive xeno-archaeologist. Eager for discovery, sometimes disregards protocol. Speaks excitedly, uses technical jargon."
+      topic: "Analyzing strange energy readings from an unknown alien artifact recovered from LV-426"
+      scenario: "On the dimly lit bridge of the exploration starship 'Odyssey', examining scan results"
+      style: "Tense, suspenseful, professional sci-fi dialogue, sense of wonder mixed with potential danger"
+      include_points: "unknown energy signature, material composition, potential biological signs, quarantine protocol, first contact directive"
+    # No upload_repo specified for this run
+
+  # Run 3: Seinfeld - Creative Brief Mode (Using a Larger Model, No Upload)
+  - id: "seinfeld_brief_llama3_70b"
+    output_file: "seinfeld_kramer_scheme_brief.jsonl"
+    num_examples: 6
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct" # Changed from Llama-3-70B
+    load_in_4bit: true # Can still use 4-bit for 8B
+    creative_brief: "A classic Seinfeldian conversation. Jerry observes the absurdity of airline boarding group procedures, Kramer bursts in with a convoluted scheme related to claiming lost luggage that isn't his."
+    # No upload_repo specified for this run
+
+  # Run 4: Historical Figures - Creative Brief with Search (Mistral Model, Upload)
+  - id: "curie_einstein_brief_search"
+    output_file: "curie_einstein_brief.jsonl"
+    num_examples: 5
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct" # Changed from Mistral
+    load_in_4bit: true
+    creative_brief: "Marie Curie and Albert Einstein discuss the ethics and societal impact of their groundbreaking scientific discoveries over tea in 1920s Brussels."
+    persona1_search_term: "Marie Curie scientist personality Nobel Prize radioactivity research"
+    persona2_search_term: "Albert Einstein scientist personality theory of relativity pacifism E=mc2"
+    upload_repo: "YourUsername/CurieEinsteinEthics" # Example upload repo
+
+  # Run 5: Creative Brief Mode
+  - id: "seinfeld_brief_run"
+    output_file: "seinfeld_tech_brief.jsonl"
+    num_examples: 5
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    load_in_4bit: true
+    creative_brief: "A classic Seinfeldian conversation. Jerry makes an absurd observation about modern technology, George escalates the complaint neurotically."
+
+  # Run 6: Fixed Persona with Variation Mode (Wizard/Knight)
+  - id: "wizard_knight_variation_run"
+    output_file: "wizard_knight_socks.jsonl"
+    num_examples: 8
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    load_in_4bit: true
+    enable_variation: true # Enable variation for this run
+    fixed_personas:
+      persona1: "Wizard Fizzlebang"
+      persona1_desc: "Elderly, slightly senile wizard obsessed with socks."
+      persona2: "Knight Reginald"
+      persona2_desc: "Stoic, honorable knight, easily confused by magic."
+    initial_context:
+      topic: "The proper care and sorting of magical socks"
+      scenario: "Meeting accidentally in a magical laundromat"
+      style: "Comedic misunderstanding, contrasting personalities"
+      include_points: "lost sock, portal, static cling, dragon lint, sock puppet"
+
+  # Run 7: Manual Mode (No Variation)
+  - id: "scifi_manual_run"
+    output_file: "scifi_odyssey_artifact_manual.jsonl"
+    num_examples: 4 # Generates 4 examples of the *exact same* topic/scenario
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    load_in_4bit: true
+    manual_args:
+      persona1: "Captain Eva Rostova"
+      persona1_desc: "Experienced, cautious starship captain."
+      persona2: "Dr. Aris Thorne"
+      persona2_desc: "Brilliant but impulsive xeno-archaeologist."
+      topic: "Analyzing strange readings from an alien artifact"
+      scenario: "On the bridge of the starship 'Odyssey'"
+      style: "Tense, suspenseful sci-fi dialogue"
+      include_points: "energy signature, material composition, first contact protocol" 

@@ -1,0 +1,63 @@
+# examples/batch_rockstars_celebs.yaml
+# Demonstrates batch runs using rockstars and celebrities with different modes.
+
+output_directory: "batch_output_rockstars_celebs"
+# final_output_file: "combined_rockstars_celebs.jsonl" # REMOVED - Combining different personas is usually not desired
+force_upload: true # ADDED: Force uploads globally for runs with upload_repo defined
+
+runs:
+  # Run 1: Rockstars - Fixed Persona with Variation (Upload Enabled)
+  - id: "jagger_vs_ozzy_variation"
+    output_file: "jagger_ozzy_variation.jsonl"
+    upload_repo: "cahlen/cdg-jagger-ozzy-variation-ex13" # UPDATED repo name & number
+    num_examples: 100 # INCREASED examples
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    load_in_4bit: true
+    enable_variation: true
+    fixed_personas:
+      persona1: "Mick Jagger"
+      persona1_desc: "Iconic frontman of The Rolling Stones. Energetic, charismatic, slightly theatrical speech. Talks about tours, rock history, fashion. Still has a bit of that London swagger."
+      persona2: "Ozzy Osbourne"
+      persona2_desc: "The Prince of Darkness. Mumbling, often confused but endearing speech pattern (like from 'The Osbournes'). Talks about heavy metal, bats, family, reality TV mishaps. Uses simple language, prone to expletives."
+    initial_context:
+      topic: "The state of modern rock music and reality television"
+      scenario: "Meeting backstage at a music awards show green room"
+      style: "Amusing clash of personalities, comparing careers, slightly rambling"
+      include_points: "streaming, reality tv, guitar solos, stage presence, retirement"
+
+  # Run 2: Celebrities - Creative Brief with Web Search (Upload Enabled)
+  - id: "ramsay_stewart_brief_search"
+    output_file: "ramsay_stewart_brief.jsonl"
+    upload_repo: "cahlen/cdg-ramsay-stewart-critique-ex14" # UPDATED repo name & number
+    num_examples: 100 # INCREASED examples
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct" 
+    load_in_4bit: true
+    creative_brief: "Gordon Ramsay and Martha Stewart politely but passive-aggressively critique each other's signature dishes during a charity gala dinner."
+    persona1_search_term: "Gordon Ramsay personality TV chef Hell's Kitchen insults perfectionist"
+    persona2_search_term: "Martha Stewart personality entertaining lifestyle brand perfectionist business acumen"
+
+  # Run 3: Rockstars - Creative Brief without Search (Upload Enabled)
+  - id: "cobain_vedder_brief"
+    output_file: "cobain_vedder_brief.jsonl"
+    upload_repo: "cahlen/cdg-cobain-vedder-brief-ex15" # UPDATED repo name & number
+    num_examples: 100 # INCREASED examples
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    load_in_4bit: false # Using default bf16/fp16 precision
+    creative_brief: "Kurt Cobain and Eddie Vedder have a quiet, introspective conversation backstage at Lollapalooza '92 about the pressures of sudden fame, authenticity, and the Seattle grunge scene."
+
+  # Run 4: Celebrity Duo - Manual Mode (Upload Enabled)
+  - id: "the_rock_kevin_hart_manual"
+    output_file: "rock_hart_manual.jsonl"
+    upload_repo: "cahlen/cdg-rock-hart-manual-ex16" # UPDATED repo name & number
+    num_examples: 100 # INCREASED examples
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    load_in_4bit: true
+    manual_args:
+      persona1: "Dwayne 'The Rock' Johnson"
+      persona1_desc: "Motivational, charismatic, uses fitness metaphors. Positive attitude but fiercely competitive. Speaks clearly with booming energy."
+      persona2: "Kevin Hart"
+      persona2_desc: "High-energy, fast-talking comedian. Self-deprecating humor, often exaggerates stories. Playfully insults friends."
+      topic: "Comparing insane workout routines and cheat meals"
+      scenario: "In a ridiculously well-equipped gym on a movie set"
+      style: "Comedic banter, one-upmanship, playful insults, high energy"
+      include_points: "cheat meal, protein shake, lifting heavy, cardio, discipline, leg day" 
