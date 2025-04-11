@@ -157,68 +157,153 @@ To get a local copy up and running follow these simple steps.
 <!-- USAGE EXAMPLES -->
 ## Usage
 
-The script can be run in two primary ways: Manual Mode (specifying all details) or Creative Brief Mode (providing a concept and letting the LLM fill in details).
+This project provides two main scripts for generating conversational data:
 
-### Modes of Operation
+1.  `generate.py`: Generates a single dataset based on command-line arguments or a creative brief.
+2.  `batch_generate.py`: Runs multiple `generate.py` processes based on a YAML configuration file, allowing for large-scale generation across different scenarios and modes.
 
-#### 1. Manual Mode (Detailed Arguments)
+### Single Generation (`generate.py`)
 
-Provide all conversation parameters explicitly.
+The `generate.py` script can be run in several ways:
+
+**1. Manual Mode (Detailed Arguments)**
+
+Provide all conversation parameters explicitly on the command line.
 
 ```bash
-python generate.py --persona1 "Wizard" --persona1-desc "Grumpy, old, prone to muttering spells" \\
-                   --persona2 "Knight" --persona2-desc "Overly cheerful, oblivious to Wizard's mood" \\
-                   --topic "The best way to polish armor without magic" \\
-                   --scenario "Stuck in a dungeon waiting room with bad Muzak" \\
-                   --style "Comedic, bickering, contrasting personalities" \\
-                   --num-examples 10 --output-file manual_test.jsonl
+# Activate your virtual environment first!
+source venv/bin/activate 
+
+python generate.py --persona1 \"Wizard\" --persona1-desc \"Grumpy, old, prone to muttering spells\" \
+                   --persona2 \"Knight\" --persona2-desc \"Overly cheerful, oblivious to Wizard's mood\" \
+                   --topic \"The best way to polish armor without magic\" \
+                   --scenario \"Stuck in a dungeon waiting room with bad Muzak\" \
+                   --style \"Comedic, bickering, contrasting personalities\" \
+                   --num-examples 10 \
+                   --output-file manual_wizard_knight.jsonl \
+                   --model-id meta-llama/Meta-Llama-3-8B-Instruct 
 ```
 
-#### 2. Creative Brief Mode (Automatic Argument & Topic Variation)
+**2. Creative Brief Mode (Automatic Argument & Topic Variation)**
 
-Provide a high-level brief. The script generates parameters, optionally using web search for context, and creates variations for each example.
+Provide a high-level brief. The script generates detailed parameters (personas, topic, etc.) using the LLM, optionally incorporating web search context, and then creates topic/scenario variations for each example.
 
 ```bash
 # Without web search
-python generate.py --creative-brief "A pirate captain trying to order coffee at a modern minimalist cafe" \\
-                   --num-examples 15 --output-file brief_pirate.jsonl
+python generate.py --creative-brief \"A pirate captain trying to order coffee at a modern minimalist cafe\" \
+                   --num-examples 15 \
+                   --output-file brief_pirate.jsonl
 
 # With web search for specific personas
-python generate.py --creative-brief "Conversation between Tech Lead Tina and Junior Dev Joe about effective code reviews" \\
-                   --num-examples 10 \\
-                   --persona1-search-term "Typical Tech Lead responsibilities personality traits communication" \\
-                   --persona2-search-term "Junior Developer challenges learning curve receiving feedback" \\
+python generate.py --creative-brief \"Conversation between Tech Lead Tina and Junior Dev Joe about effective code reviews\" \
+                   --num-examples 10 \
+                   --persona1-search-term \"Typical Tech Lead responsibilities personality traits communication\" \
+                   --persona2-search-term \"Junior Developer challenges learning curve receiving feedback\" \
                    --output-file brief_tech_review.jsonl
 ```
 
-**Script Flow Overview:**
+**3. Fixed Persona + Variation Mode**
 
-```text
-1. Start generate.py
-2. Check arguments:
-   |--> If --delete-repo provided:
-   |     Confirm deletion -> Delete repo(s) -> Exit.
-   |--> If --creative-brief provided:
-   |     Optional: Perform web search (if --personaX-search-term)
-   |     Generate base args (personas, initial topic/scenario/style) using LLM (+ web context)
-   |     Optional: Search for persona images
-   |     Loop N times (--num-examples):
-   |       Generate topic/scenario variation using LLM
-   |       Generate conversation using LLM (base personas + varied context)
-   |       Parse & Store Conversation
-   |     -> Save to JSONL -> Optional Upload -> Exit.
-   |--> Else (Manual Mode):
-   |     Use provided --topic, --personas, etc.
-   |     Optional: Search for persona images
-   |     Loop N times (--num-examples):
-   |       Generate conversation using LLM (fixed context)
-   |       Parse & Store Conversation
-   |     -> Save to JSONL -> Optional Upload -> Exit.
+Define fixed personas and an initial context, then enable variation to generate diverse conversations with those same characters.
+
+```bash
+python generate.py \
+  --enable-variation \
+  --fixed-persona1 \"Mick Jagger\" \
+  --fixed-persona1-desc \"Iconic frontman...\" \
+  --fixed-persona2 \"Ozzy Osbourne\" \
+  --fixed-persona2-desc \"The Prince of Darkness...\" \
+  --initial-topic \"Modern rock music and reality TV\" \
+  --initial-scenario \"Backstage at an awards show\" \
+  --initial-style \"Amusing clash...\" \
+  --num-examples 20 \
+  --output-file fixed_jagger_ozzy.jsonl \
+  --load-in-4bit 
 ```
+
+(See Argument Reference below for all available options for `generate.py`)
+
+### Batch Generation (`batch_generate.py`)
+
+For generating multiple datasets with different configurations efficiently, use the `batch_generate.py` script along with a YAML configuration file.
+
+**1. Create a YAML Configuration File**
+
+Define the runs you want to perform. Each run corresponds to one execution of `generate.py`. You can mix modes (manual, brief, fixed persona) within a single YAML file. See the `examples/` directory for detailed configuration examples like `examples/batch_mixed_modes.yaml` and `examples/batch_rockstars_celebs.yaml`.
+
+**Key YAML Structure:**
+
+```yaml
+# Top-level settings (optional)
+output_directory: "./batch_output" # Base directory for all output files
+# upload_repo: "YourUser/GlobalRepo" # Optional: Default repo if not set per-run
+force_upload: false # Optional: Global force upload flag
+
+# List of runs to execute
+runs:
+  # Run 1: Creative Brief Example
+  - id: "unique_run_id_1"             # Optional: Identifier for logging
+    output_file: "run1_output.jsonl" # REQUIRED: Specific output for this run
+    num_examples: 50
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    creative_brief: "Scenario description..."
+    upload_repo: "YourUser/Run1Dataset" # Optional: Per-run upload destination
+    load_in_4bit: true
+
+  # Run 2: Fixed Persona + Variation Example
+  - id: "unique_run_id_2"
+    output_file: "run2_output.jsonl"
+    num_examples: 75
+    enable_variation: true             # REQUIRED for this mode
+    fixed_personas:
+      persona1: "Persona Name"
+      persona1_desc: "Description..."
+      persona2: "Another Persona"
+      persona2_desc: "Description..."
+    initial_context:
+      topic: "Seed topic"
+      scenario: "Seed scenario"
+      style: "Seed style"
+      # include_points: "optional,keywords"
+    load_in_4bit: true
+
+  # Run 3: Manual Mode Example
+  - id: "unique_run_id_3"
+    output_file: "run3_output.jsonl"
+    num_examples: 25
+    manual_args:                  # REQUIRED for this mode
+      topic: "Manual topic"
+      persona1: "Manual Persona 1"
+      persona1_desc: "Desc..."
+      persona2: "Manual Persona 2"
+      persona2_desc: "Desc..."
+      scenario: "Manual scenario"
+      style: "Manual style"
+      # include_points: "optional,keywords"
+    # No upload specified for this run
+
+  # ... add more runs as needed
+```
+
+**2. Run the Batch Script**
+
+Execute `batch_generate.py` and point it to your YAML configuration file.
+
+```bash
+# Activate your virtual environment first!
+source venv/bin/activate 
+
+python batch_generate.py path/to/your/config.yaml
+
+# Example using one of the provided configs:
+python batch_generate.py examples/batch_rockstars_celebs.yaml 
+```
+
+The script will iterate through each run defined in the YAML, construct the appropriate `generate.py` command, execute it, and log the progress and results.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-### Argument Reference
+### Argument Reference (`generate.py`)
 
 Tailor your generation precisely. Provide EITHER `--creative-brief` OR the set of detailed manual arguments. Use `--delete-repo` only for deleting repositories.
 
@@ -268,17 +353,17 @@ Here are various examples demonstrating how to generate data for specific goals 
 *Goal: Create a LoRA that makes an LLM generate witty, observational dialogue reminiscent of a classic sitcom.*
 
 ```bash
-python generate.py \\
-  --num-examples 1000 \\
-  --topic "the absurdity of everyday errands" \\
-  --persona1 "Alex" \\
-  --persona1-desc "slightly neurotic, prone to overthinking, often uses rhetorical questions" \\
-  --persona2 "Sam" \\
-  --persona2-desc "more laid-back, often amused by Alex's antics, responds with dry wit" \\
-  --scenario "waiting in line at the post office" \\
-  --style "observational, witty, fast-paced banter, slightly absurd, like Seinfeld" \\
-  --include-points "long lines, confusing forms, questionable package handling, passive aggression" \\
-  --output-file sitcom_style_dataset.jsonl \\
+python generate.py \
+  --num-examples 1000 \
+  --topic "the absurdity of everyday errands" \
+  --persona1 "Alex" \
+  --persona1-desc "slightly neurotic, prone to overthinking, often uses rhetorical questions" \
+  --persona2 "Sam" \
+  --persona2-desc "more laid-back, often amused by Alex's antics, responds with dry wit" \
+  --scenario "waiting in line at the post office" \
+  --style "observational, witty, fast-paced banter, slightly absurd, like Seinfeld" \
+  --include-points "long lines, confusing forms, questionable package handling, passive aggression" \
+  --output-file sitcom_style_dataset.jsonl \
   --model-id meta-llama/Meta-Llama-3-8B-Instruct
 ```
 
@@ -292,17 +377,17 @@ python generate.py \\
 *Goal: Fine-tune a model to act as a patient, encouraging coding mentor.*
 
 ```bash
-python generate.py \\
-  --num-examples 500 \\
-  --topic "debugging a common Python error (e.g., IndexError)" \\
-  --persona1 "MentorBot" \\
-  --persona1-desc "a patient, knowledgeable, and encouraging Python tutor AI. Uses analogies, asks guiding questions rather than giving direct answers, celebrates small successes." \\
-  --persona2 "Learner" \\
-  --persona2-desc "a beginner programmer feeling slightly stuck but eager to learn, expresses confusion clearly." \\
-  --scenario "working through a coding problem together online via chat" \\
-  --style "supportive, clear, step-by-step, educational, positive reinforcement" \\
-  --include-points "traceback, variable scope, print debugging, list index, off-by-one, debugging process" \\
-  --output-file mentor_persona_dataset.jsonl \\
+python generate.py \
+  --num-examples 500 \
+  --topic "debugging a common Python error (e.g., IndexError)" \
+  --persona1 "MentorBot" \
+  --persona1-desc "a patient, knowledgeable, and encouraging Python tutor AI. Uses analogies, asks guiding questions rather than giving direct answers, celebrates small successes." \
+  --persona2 "Learner" \
+  --persona2-desc "a beginner programmer feeling slightly stuck but eager to learn, expresses confusion clearly." \
+  --scenario "working through a coding problem together online via chat" \
+  --style "supportive, clear, step-by-step, educational, positive reinforcement" \
+  --include-points "traceback, variable scope, print debugging, list index, off-by-one, debugging process" \
+  --output-file mentor_persona_dataset.jsonl \
   --model-id meta-llama/Meta-Llama-3-8B-Instruct
 ```
 
@@ -316,17 +401,17 @@ python generate.py \\
 *Goal: Make the LLM more fluent and natural when explaining a complex topic conversationally.*
 
 ```bash
-python generate.py \\
-  --num-examples 750 \\
-  --topic "basic concepts of quantum computing" \\
-  --persona1 "QuantumGuru" \\
-  --persona1-desc "an expert simplifying quantum concepts using everyday analogies (like coin flips for superposition). Patient and enjoys teaching." \\
-  --persona2 "CuriousChris" \\
-  --persona2-desc "intelligent but new to quantum, asks clarifying questions, tries to relate concepts to familiar things." \\
-  --scenario "a casual conversation over coffee trying to understand new tech trends" \\
-  --style "simplified, analogy-driven, patient, engaging, avoiding deep jargon where possible" \\
-  --include-points "qubit, superposition, entanglement, potential applications, uncertainty, classical vs quantum" \\
-  --output-file quantum_topic_dataset.jsonl \\
+python generate.py \
+  --num-examples 750 \
+  --topic "basic concepts of quantum computing" \
+  --persona1 "QuantumGuru" \
+  --persona1-desc "an expert simplifying quantum concepts using everyday analogies (like coin flips for superposition). Patient and enjoys teaching." \
+  --persona2 "CuriousChris" \
+  --persona2-desc "intelligent but new to quantum, asks clarifying questions, tries to relate concepts to familiar things." \
+  --scenario "a casual conversation over coffee trying to understand new tech trends" \
+  --style "simplified, analogy-driven, patient, engaging, avoiding deep jargon where possible" \
+  --include-points "qubit, superposition, entanglement, potential applications, uncertainty, classical vs quantum" \
+  --output-file quantum_topic_dataset.jsonl \
   --model-id meta-llama/Meta-Llama-3-8B-Instruct
 ```
 
@@ -340,21 +425,21 @@ python generate.py \\
 *Goal: Train the model to better incorporate specific keywords or constraints during generation.*
 
 ```bash
-python generate.py \\
-  --num-examples 800 \\
-  --topic "benefits of renewable energy sources" \\
-  --persona1 "EcoAdvocate" \\
-  --persona1-desc "passionate environmental scientist, presents facts and figures clearly, optimistic tone." \\
-  --persona2 "SkepticSam" \\
-  --persona2-desc "concerned about costs and grid reliability, asks challenging but fair questions, slightly pessimistic tone." \\
-  --scenario "a public town hall meeting discussion about local energy policy" \\
-  --style "informative but persuasive debate, addressing counterarguments respectfully" \\
-  --include-points "solar panel efficiency, wind turbine placement, grid stability, battery storage, long-term cost savings, carbon emissions, job creation" \\
-  --output-file instruction_adherence_dataset.jsonl \\
+python generate.py \
+  --num-examples 800 \
+  --topic "benefits of renewable energy sources" \
+  --persona1 "EcoAdvocate" \
+  --persona1-desc "passionate environmental scientist, presents facts and figures clearly, optimistic tone." \
+  --persona2 "SkepticSam" \
+  --persona2-desc "concerned about costs and grid reliability, asks challenging but fair questions, slightly pessimistic tone." \
+  --scenario "a public town hall meeting discussion about local energy policy" \
+  --style "informative but persuasive debate, addressing counterarguments respectfully" \
+  --include-points "solar panel efficiency, wind turbine placement, grid stability, battery storage, long-term cost savings, carbon emissions, job creation" \
+  --output-file instruction_adherence_dataset.jsonl \
   --model-id meta-llama/Meta-Llama-3-8B-Instruct
 ```
 
-*Explanation: Training on data where specific `--include-points` were required reinforces the model\'s ability to follow constraints within a natural dialogue structure.*
+*Explanation: Training on data where specific `--include-points` were required reinforces the model's ability to follow constraints within a natural dialogue structure.*
 
 </details>
 
@@ -364,17 +449,17 @@ python generate.py \\
 *Goal: Draft dialogue for a specific scene in a science fiction TV pilot.*
 
 ```bash
-python generate.py \\
-  --num-examples 20 \\
-  --topic "analyzing strange readings from an unknown alien artifact" \\
-  --persona1 "Captain Eva Rostova" \\
-  --persona1-desc "experienced, cautious starship captain, focused on procedure and crew safety. Speaks formally." \\
-  --persona2 "Dr. Aris Thorne" \\
-  --persona2-desc "brilliant but impulsive xeno-archaeologist, eager for discovery, sometimes disregards protocol. Speaks excitedly, uses technical jargon." \\
-  --scenario "on the bridge of the starship 'Odyssey' examining scan results displayed on a large viewscreen" \\
-  --style "tense, suspenseful, professional sci-fi dialogue, sense of wonder mixed with potential danger" \\
-  --include-points "unknown energy signature, unusual material composition, potential risks, isolation, first contact protocol" \\
-  --output-file scifi_scene_dialogue.jsonl \\
+python generate.py \
+  --num-examples 20 \
+  --topic "analyzing strange readings from an unknown alien artifact" \
+  --persona1 "Captain Eva Rostova" \
+  --persona1-desc "experienced, cautious starship captain, focused on procedure and crew safety. Speaks formally." \
+  --persona2 "Dr. Aris Thorne" \
+  --persona2-desc "brilliant but impulsive xeno-archaeologist, eager for discovery, sometimes disregards protocol. Speaks excitedly, uses technical jargon." \
+  --scenario "on the bridge of the starship 'Odyssey' examining scan results displayed on a large viewscreen" \
+  --style "tense, suspenseful, professional sci-fi dialogue, sense of wonder mixed with potential danger" \
+  --include-points "unknown energy signature, unusual material composition, potential risks, isolation, first contact protocol" \
+  --output-file scifi_scene_dialogue.jsonl \
   --model-id meta-llama/Meta-Llama-3-8B-Instruct
 ```
 
@@ -388,11 +473,11 @@ python generate.py \\
 *Goal: Quickly generate diverse dialogue between consistent historical figures without defining all details manually.*
 
 ```bash
-python generate.py \\
-  --creative-brief "A philosophical debate between Leonardo da Vinci and Marie Curie about the nature of discovery." \\
-  --num-examples 25 \\
-  --output-file brief_historical_debate.jsonl \\
-  --model-id meta-llama/Meta-Llama-3-8B-Instruct \\
+python generate.py \
+  --creative-brief "A philosophical debate between Leonardo da Vinci and Marie Curie about the nature of discovery." \
+  --num-examples 25 \
+  --output-file brief_historical_debate.jsonl \
+  --model-id meta-llama/Meta-Llama-3-8B-Instruct \
   --upload-to-hub YourUser/VariedHistoricalDebate
 ```
 
@@ -406,11 +491,11 @@ python generate.py \\
 *Goal: Create dialogue involving a specific, possibly less famous individual by providing web search terms for context.*
 
 ```bash
-python generate.py \\
-  --creative-brief "Generate a conversation between tech reviewer Marques Brownlee (MKBHD) and legendary filmmaker Stanley Kubrick about the design philosophy of smartphones vs. cinema cameras." \\
-  --num-examples 5 \\
-  --persona1-search-term "Marques Brownlee MKBHD tech review style personality" \\
-  --persona2-search-term "Stanley Kubrick filmmaker personality directing style meticulous" \\
+python generate.py \
+  --creative-brief "Generate a conversation between tech reviewer Marques Brownlee (MKBHD) and legendary filmmaker Stanley Kubrick about the design philosophy of smartphones vs. cinema cameras." \
+  --num-examples 5 \
+  --persona1-search-term "Marques Brownlee MKBHD tech review style personality" \
+  --persona2-search-term "Stanley Kubrick filmmaker personality directing style meticulous" \
   --output-file mkbhd_kubrick_web_terms_5.jsonl
 ```
 
@@ -424,10 +509,10 @@ python generate.py \\
 *Goal: Create diverse dialogue for a fantasy setting from a simple concept.*
 
 ```bash
-python generate.py \\
-  --creative-brief "An ancient, wise dragon trying to explain magic to a skeptical, pragmatic dwarf blacksmith." \\
-  --num-examples 50 \\
-  --output-file brief_fantasy_talk.jsonl \\
+python generate.py \
+  --creative-brief "An ancient, wise dragon trying to explain magic to a skeptical, pragmatic dwarf blacksmith." \
+  --num-examples 50 \
+  --output-file brief_fantasy_talk.jsonl \
   --validate-local-save
 ```
 
@@ -441,9 +526,9 @@ python generate.py \\
 *Goal: Generate surreal, varied dialogue based on an unusual pairing.*
 
 ```bash
-python generate.py \\
-  --creative-brief "A sentient existentialist toaster discussing the meaning of crumbs with a flock of nihilistic pigeons in a park." \\
-  --num-examples 10 \\
+python generate.py \
+  --creative-brief "A sentient existentialist toaster discussing the meaning of crumbs with a flock of nihilistic pigeons in a park." \
+  --num-examples 10 \
   --output-file brief_toaster_pigeons.jsonl
 ```
 
@@ -457,14 +542,14 @@ python generate.py \\
 *Goal: Quickly generate dialogue fitting a specific genre like Noir using only a brief.*
 
 ```bash
-python generate.py \\
-  --creative-brief "A hardboiled detective interrogating a nervous informant about a stolen artifact in a smoky, rain-slicked alley." \\
-  --num-examples 10 \\
-  --output-file brief_noir_interrogation.jsonl \\
+python generate.py \
+  --creative-brief "A hardboiled detective interrogating a nervous informant about a stolen artifact in a smoky, rain-slicked alley." \
+  --num-examples 10 \
+  --output-file brief_noir_interrogation.jsonl \
   --model-id meta-llama/Meta-Llama-3-8B-Instruct
 ```
 
-*Explanation: The `--creative-brief` provides strong genre cues (hardboiled detective, nervous informant, smoky alley). The LLM generates appropriate personas, topics, scenarios, and a noir style, varying the specifics (e.g., the nature of the artifact, the informant\'s specific fear) across the examples.*
+*Explanation: The `--creative-brief` provides strong genre cues (hardboiled detective, nervous informant, smoky alley). The LLM generates appropriate personas, topics, scenarios, and a noir style, varying the specifics (e.g., the nature of the artifact, the informant's specific fear) across the examples.*
 
 </details>
 
@@ -474,16 +559,16 @@ python generate.py \\
 *Goal: Create dialogue between specific, potentially niche historical figures by providing web search terms for context.*
 
 ```bash
-python generate.py \\
-  --creative-brief "Conversation between pioneering computer scientist Grace Hopper and minimalist artist Donald Judd about optimizing naval logistics vs. arranging metal boxes." \\
-  --num-examples 5 \\
-  --persona1-search-term "Grace Hopper admiral computer scientist personality nickname Amazing Grace COBOL" \\
-  --persona2-search-term "Donald Judd artist minimalism Marfa Texas personality meticulous" \\
-  --output-file hopper_judd_web_search.jsonl \\
+python generate.py \
+  --creative-brief "Conversation between pioneering computer scientist Grace Hopper and minimalist artist Donald Judd about optimizing naval logistics vs. arranging metal boxes." \
+  --num-examples 5 \
+  --persona1-search-term "Grace Hopper admiral computer scientist personality nickname Amazing Grace COBOL" \
+  --persona2-search-term "Donald Judd artist minimalism Marfa Texas personality meticulous" \
+  --output-file hopper_judd_web_search.jsonl \
   --model-id meta-llama/Meta-Llama-3-8B-Instruct
 ```
 
-*Explanation: The brief sets the stage. The `--personaX-search-term` arguments guide the LLM\'s argument generation step by providing specific web context for Grace Hopper and Donald Judd, helping capture their distinct personalities and fields, even if they aren\'t strongly represented in the base model\'s training.*
+*Explanation: The brief sets the stage. The `--personaX-search-term` arguments guide the LLM's argument generation step by providing specific web context for Grace Hopper and Donald Judd, helping capture their distinct personalities and fields, even if they aren't strongly represented in the base model's training.*
 
 </details>
 
@@ -493,12 +578,12 @@ python generate.py \\
 *Goal: Create dialogue between well-known but perhaps less common fictional characters using web search to solidify their personas.*
 
 ```bash
-python generate.py \\
-  --creative-brief "A discussion between the AI assistant Clippy and the philosophical robot Marvin the Paranoid Android about the inherent suffering of existence vs. offering unsolicited help." \\
-  --num-examples 8 \\
-  --persona1-search-term "Microsoft Clippy paperclip assistant personality annoying helpful interruption" \\
-  --persona2-search-term "Marvin the Paranoid Android Hitchhiker's Guide personality depressed intelligent brain the size of a planet" \\
-  --output-file clippy_marvin_web_search.jsonl \\
+python generate.py \
+  --creative-brief "A discussion between the AI assistant Clippy and the philosophical robot Marvin the Paranoid Android about the inherent suffering of existence vs. offering unsolicited help." \
+  --num-examples 8 \
+  --persona1-search-term "Microsoft Clippy paperclip assistant personality annoying helpful interruption" \
+  --persona2-search-term "Marvin the Paranoid Android Hitchhiker's Guide personality depressed intelligent brain the size of a planet" \
+  --output-file clippy_marvin_web_search.jsonl \
   --model-id meta-llama/Meta-Llama-3-8B-Instruct
 ```
 

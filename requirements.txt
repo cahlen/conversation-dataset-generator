@@ -8,3 +8,4 @@ duckduckgo-search
 peft
 trl
 +bitsandbytes
+tqdm>=4.62.0

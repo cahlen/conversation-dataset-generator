@@ -17,9 +17,17 @@ from duckduckgo_search import DDGS # Import for web search
 import pandas as pd # Added for pandas import
 from datasets.utils.logging import set_verbosity_error as datasets_set_verbosity_error
 from transformers.utils import logging as transformers_logging
+from tqdm import tqdm # Import tqdm for progress bars
 
 # Setup basic logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s') # Set default level to INFO
+
+# Reduce verbosity from underlying libraries
+datasets_set_verbosity_error()
+transformers_logging.set_verbosity_error()
+logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
+logging.getLogger("datasets").setLevel(logging.ERROR) # Further suppress datasets logging
+logging.getLogger("transformers").setLevel(logging.ERROR) # Further suppress transformers logging
 
 # --- Constants ---
 ARG_GENERATION_SYSTEM_PROMPT = """You are an expert creative assistant specializing in setting up parameters for a conversational dialogue generation script. Your goal is to take a user's request, which typically names two entities (characters, concepts, etc.), and generate a complete set of *realistic* and *grounded* arguments suitable for the `generate.py` script.
@@ -438,10 +446,26 @@ def parse_conversation_to_sharegpt(conversation_text: str, persona1: str, person
     return conversations, persona1, persona2
 
 # New function to generate topic/scenario variations
-def generate_topic_variation(original_brief: str, persona1: str, persona1_desc: str, persona2: str, persona2_desc: str, initial_topic: str, initial_scenario: str, initial_style: str, generator_pipeline, tokenizer) -> dict | None:
-    """Uses the LLM to generate a variation on topic/scenario/style given fixed personas."""
+def generate_topic_variation(
+        persona1: str, persona1_desc: str, 
+        persona2: str, persona2_desc: str, 
+        initial_topic: str, initial_scenario: str, initial_style: str, 
+        generator_pipeline, tokenizer, 
+        original_brief: str | None = None
+    ) -> dict | None:
+    """Uses the LLM to generate a variation on topic/scenario/style given fixed personas and initial context.
+
+    Can be driven either by an original_brief (legacy behavior) or by direct initial context.
+    """
     logging.info("  Attempting to generate topic/scenario variation...")
-    context = f"Original Brief: \"{original_brief}\"\nPersona 1: {persona1} ({persona1_desc})\nPersona 2: {persona2} ({persona2_desc})\nInitial Topic: \"{initial_topic}\"\nInitial Scenario: \"{initial_scenario}\"\nInitial Style: \"{initial_style}\""
+
+    # Construct context differently based on input type
+    if original_brief:
+        context = f"Original Brief: \"{original_brief}\"\nPersona 1: {persona1} ({persona1_desc})\nPersona 2: {persona2} ({persona2_desc})\nInitial Topic: \"{initial_topic}\"\nInitial Scenario: \"{initial_scenario}\"\nInitial Style: \"{initial_style}\""
+    else:
+        # Use direct initial context if no brief provided
+        context = f"Fixed Persona 1: {persona1} ({persona1_desc})\nFixed Persona 2: {persona2} ({persona2_desc})\nInitial Topic: \"{initial_topic}\"\nInitial Scenario: \"{initial_scenario}\"\nInitial Style: \"{initial_style}\""
+        context += "\n\nGenerate a NEW, related topic and scenario based on the INITIAL context above, while keeping the personas in mind."
     
     messages = [
         {"role": "system", "content": TOPIC_VARIATION_SYSTEM_PROMPT},
@@ -512,15 +536,17 @@ if __name__ == "__main__":
     )
     
     # --- Mode Selection Arguments (Optional - logic determines mode) ---
+    mode_group = parser.add_argument_group('Mode Selection (Mutually Exclusive)')
+    mode_exclusive_group = mode_group.add_mutually_exclusive_group()
     # Creative Brief Mode trigger
-    parser.add_argument(
+    mode_exclusive_group.add_argument(
         '--creative-brief', 
         type=str, 
-        help='High-level creative brief (e.g., "Predator talks to Jerry Seinfeld"). Triggers automatic argument generation.'
+        help='High-level creative brief (e.g., "Predator talks to Jerry Seinfeld"). Triggers automatic argument generation + topic variation.'
     )
     
     # Deletion Mode trigger
-    parser.add_argument(
+    mode_exclusive_group.add_argument(
         '--delete-repo', 
         type=str, 
         nargs='+', # Accept one or more arguments
@@ -528,17 +554,29 @@ if __name__ == "__main__":
         help='Specify one or more Hugging Face Hub dataset repository IDs to delete permanently. \nExample: --delete-repo user/repo1 user/repo2\nTHIS ACTION IS IRREVERSIBLE.'
     )
 
-    # --- Argument Groups (Used based on mode) ---
-    # Group for detailed manual arguments (Used if --creative-brief and --delete-repo are NOT provided)
-    detailed_group = parser.add_argument_group('Detailed Arguments (Manual Generation Mode)')
-    detailed_group.add_argument('--topic', type=str, help='Topic for the conversations.')
-    detailed_group.add_argument('--persona1', type=str, help='Name of the first speaker (maps to human role).')
-    detailed_group.add_argument('--persona1-desc', type=str, help='Description of the first persona.')
-    detailed_group.add_argument('--persona2', type=str, help='Name of the second speaker (maps to gpt role).')
-    detailed_group.add_argument('--persona2-desc', type=str, help='Description of the second persona.')
-    detailed_group.add_argument('--scenario', type=str, help='Scenario/context for the conversation.')
-    detailed_group.add_argument('--style', type=str, help='Style/tone of the conversation.')
-    detailed_group.add_argument('--include-points', type=str, default=None, help='Comma-separated list of points/keywords to include.')
+    # Manual Mode (Detailed Args - no variation)
+    # Note: These are parsed but their requirement/usage depends on other modes not being selected
+    manual_group = parser.add_argument_group('Manual Generation Mode (No Topic Variation)')
+    manual_group.add_argument('--topic', type=str, help='Topic for the conversations.')
+    manual_group.add_argument('--persona1', type=str, help='Name of the first speaker (maps to human role).')
+    manual_group.add_argument('--persona1-desc', type=str, help='Description of the first persona.')
+    manual_group.add_argument('--persona2', type=str, help='Name of the second speaker (maps to gpt role).')
+    manual_group.add_argument('--persona2-desc', type=str, help='Description of the second persona.')
+    manual_group.add_argument('--scenario', type=str, help='Scenario/context for the conversation.')
+    manual_group.add_argument('--style', type=str, help='Style/tone of the conversation.')
+    manual_group.add_argument('--include-points', type=str, default=None, help='Comma-separated list of points/keywords to include.')
+
+    # NEW: Fixed Persona + Variation Mode
+    fixed_persona_group = parser.add_argument_group('Fixed Persona Mode (With Topic Variation)')
+    fixed_persona_group.add_argument('--fixed-persona1', type=str, help='Fixed name for Persona 1.')
+    fixed_persona_group.add_argument('--fixed-persona1-desc', type=str, help='Fixed description for Persona 1.')
+    fixed_persona_group.add_argument('--fixed-persona2', type=str, help='Fixed name for Persona 2.')
+    fixed_persona_group.add_argument('--fixed-persona2-desc', type=str, help='Fixed description for Persona 2.')
+    fixed_persona_group.add_argument('--initial-topic', type=str, help='Seed topic for variation.')
+    fixed_persona_group.add_argument('--initial-scenario', type=str, help='Seed scenario for variation.')
+    fixed_persona_group.add_argument('--initial-style', type=str, help='Seed style for variation.')
+    # Note: include_points from manual_group is used here if needed
+    fixed_persona_group.add_argument('--enable-variation', action='store_true', help='MUST be set to enable topic variation with fixed personas.')
 
     # NEW group for Brief Mode context searching
     brief_context_group = parser.add_argument_group('Creative Brief Web Context (Optional)')
@@ -558,9 +596,44 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # --- Mode Execution ---
-    # 1. Deletion Mode
+    # --- Determine Generation Mode --- 
+    mode = None
     if args.delete_repo:
+        mode = 'delete'
+    elif args.creative_brief:
+        mode = 'brief'
+    elif args.enable_variation:
+        # Check if required args for fixed persona variation mode are set
+        required_fixed_args = ['fixed_persona1', 'fixed_persona1_desc', 'fixed_persona2', 'fixed_persona2_desc', 'initial_topic', 'initial_scenario', 'initial_style']
+        missing_fixed = [f'--{arg}' for arg in required_fixed_args if getattr(args, arg) is None]
+        if missing_fixed:
+            parser.error(f"the following arguments are required for --enable-variation mode: {' '.join(missing_fixed)}")
+        # Conflict check: ensure no manual persona/topic args are used with fixed mode
+        conflicting_manual_args = ['persona1', 'persona1_desc', 'persona2', 'persona2_desc', 'topic', 'scenario', 'style']
+        provided_conflicts = [f'--{arg}' for arg in conflicting_manual_args if getattr(args, arg) is not None]
+        if provided_conflicts:
+            parser.error(f"cannot use arguments {provided_conflicts} with --enable-variation mode. Use --fixed-persona* and --initial-* arguments instead.")
+        mode = 'fixed_persona_variation'
+    elif args.persona1 and args.topic: # Heuristic: if core manual args are provided, assume manual mode
+        # Check if required args for manual mode are set
+        required_manual_args = ['persona1', 'persona1_desc', 'persona2', 'persona2_desc', 'topic', 'scenario', 'style']
+        missing_manual = [f'--{arg}' for arg in required_manual_args if getattr(args, arg) is None]
+        if missing_manual:
+            parser.error(f"the following arguments are required for manual generation mode: {' '.join(missing_manual)}")
+        mode = 'manual'
+    else:
+        # No clear mode specified or incomplete arguments for a mode
+        if not any(vars(args).values()): # No arguments provided at all
+             parser.print_help()
+             sys.exit(0)
+        else: # Some arguments provided, but not enough for a valid generation mode
+            parser.error("Insufficient arguments for a generation mode. Please provide --creative-brief, OR all required manual arguments (--topic, --persona1, etc.), OR all required fixed persona arguments (--fixed-persona1, --initial-topic, etc.) with --enable-variation.")
+
+    logging.info(f"Determined run mode: {mode}")
+
+    # --- Mode Execution --- 
+    # 1. Deletion Mode
+    if mode == 'delete':
         delete_start_time = time.monotonic()
         repo_ids_to_delete = args.delete_repo
         logging.warning(f"\n*** WARNING: You are about to permanently delete the Hugging Face Hub repositories: {', '.join(repo_ids_to_delete)} ***")
@@ -708,11 +781,13 @@ if __name__ == "__main__":
     
     # Flag to track if base arguments are determined
     base_args_determined = False
+    variation_enabled = False # Flag to control variation loop logic
     
-    if args.creative_brief:
+    # --- Determine Base Arguments Based on Mode --- 
+    if mode == 'brief':
         logging.info("Creative brief provided. Generating detailed arguments ONCE using the LLM...")
-        if any([args.topic, args.persona1, args.persona1_desc, args.persona2, args.persona2_desc, args.scenario, args.style]):
-             logging.warning("Both --creative-brief and detailed arguments were provided. Ignoring detailed arguments and generating from brief.")
+        variation_enabled = True # Variation is implicit in brief mode
+        # ... (rest of brief mode logic remains the same) ...
 
         arg_gen_start_time = time.monotonic()
         # Pass the specific search term arguments
@@ -774,24 +849,41 @@ if __name__ == "__main__":
         logging.info(f"  Persona 2 Image URL: {base_persona2_image_url}")
         
         base_args_determined = True
-    elif not args.creative_brief:
-        logging.info("Using manually provided detailed arguments.")
-        # Validate required manual args are provided
-        required_manual_args = ['topic', 'persona1', 'persona1_desc', 'persona2', 'persona2_desc', 'scenario', 'style']
-        missing_manual = [f'--{arg}' for arg in required_manual_args if getattr(args, arg) is None]
-        if missing_manual:
-             # Check if any general generation args were provided, which implies intent to generate
-            generation_intent_args = ['num_examples', 'output_file', 'max_new_tokens', 'upload_to_hub', 'force_upload', 'validate_local_save']
-            if any(getattr(args, gen_arg) is not None for gen_arg in generation_intent_args if gen_arg in args and hasattr(args, gen_arg)) or args.num_examples != parser.get_default('num_examples'): # Check non-None or non-default
-                 logging.error(f"Missing required detailed arguments for manual generation mode: {', '.join(missing_manual)}")
-                 logging.error("Please provide all required detailed arguments or use --creative-brief.")
-                 sys.exit(1)
-            else:
-                 # If no generation args were changed and detailed args are missing, maybe user just ran script with no args?
-                 parser.print_help()
-                 sys.exit(0)
-        
-        # Set base variables from args 
+
+    elif mode == 'fixed_persona_variation':
+        logging.info("Using fixed personas and initial context with variation enabled.")
+        variation_enabled = True
+        base_persona1 = args.fixed_persona1
+        base_persona1_desc = args.fixed_persona1_desc
+        base_persona2 = args.fixed_persona2
+        base_persona2_desc = args.fixed_persona2_desc
+        initial_topic = args.initial_topic
+        initial_scenario = args.initial_scenario
+        initial_style = args.initial_style
+        initial_include_points = args.include_points # Use include_points if provided
+
+        # Set last successful to initial for the first variation run
+        last_successful_topic = initial_topic
+        last_successful_scenario = initial_scenario
+        last_successful_style = initial_style
+        last_successful_include_points = initial_include_points
+
+        # Try to get images for fixed personas
+        logging.info("Attempting to find representative images for fixed personas...")
+        img_search_start = time.monotonic()
+        base_persona1_image_url = get_persona_image_url(base_persona1)
+        base_persona2_image_url = get_persona_image_url(base_persona2)
+        img_search_end = time.monotonic()
+        logging.info(f"Image search completed (took {img_search_end - img_search_start:.2f}s).")
+        logging.info(f"  Persona 1 Image URL: {base_persona1_image_url}")
+        logging.info(f"  Persona 2 Image URL: {base_persona2_image_url}")
+
+        base_args_determined = True
+
+    elif mode == 'manual':
+        logging.info("Using manually provided detailed arguments (no variation).")
+        variation_enabled = False # Explicitly disable variation for manual mode
+        # Assign base details directly from args for manual mode
         base_persona1 = args.persona1
         base_persona1_desc = args.persona1_desc
         base_persona2 = args.persona2
@@ -799,16 +891,17 @@ if __name__ == "__main__":
         initial_topic = args.topic
         initial_scenario = args.scenario
         initial_style = args.style
-        initial_include_points = args.include_points
+        initial_include_points = args.include_points 
+        # Validate required manual args are provided (already done in mode determination, but good safety check)
+        required_manual_args = ['topic', 'persona1', 'persona1_desc', 'persona2', 'persona2_desc', 'scenario', 'style']
+        missing_manual = [f'--{arg}' for arg in required_manual_args if getattr(args, arg) is None]
+        if missing_manual:
+             # This shouldn't be reachable due to earlier checks, but handle defensively
+             logging.error(f"Internal Error: Missing required manual arguments despite passing checks: {missing_manual}")
+             sys.exit(1)
         
-        # Also set last successful values to same as initial values
-        last_successful_topic = initial_topic
-        last_successful_scenario = initial_scenario
-        last_successful_style = initial_style
-        last_successful_include_points = initial_include_points
-        
-        # Try to get images
-        logging.info("Attempting to find representative images for personas...")
+        # Try to get images for manual personas
+        logging.info("Attempting to find representative images for manual personas...")
         img_search_start = time.monotonic()
         base_persona1_image_url = get_persona_image_url(base_persona1)
         base_persona2_image_url = get_persona_image_url(base_persona2)
@@ -830,24 +923,30 @@ if __name__ == "__main__":
     # --- Generation Loop ---
     gen_loop_start_time = time.monotonic()
     try:
-        for i in range(args.num_examples):
+        # Wrap the loop with tqdm
+        for i in tqdm(range(args.num_examples), desc="Generating Examples", unit="example", file=sys.stdout): # Use sys.stdout for clean tqdm output
             example_start_time = time.monotonic()
-            logging.info(f"Processing example {i+1}/{args.num_examples}...")
-            
+            # logging.info(f"Processing example {i+1}/{args.num_examples}...") # Redundant with tqdm
+
             # --- Topic/Scenario Variation Step (IF brief mode) ---
             current_topic = initial_topic
             current_scenario = initial_scenario
             current_style = initial_style
             current_include_points = initial_include_points # Re-set each loop
             
-            if args.creative_brief: # Check if brief mode is active
+            # Only run variation generation if variation is enabled for the current mode
+            if variation_enabled: 
                 variation_gen_start_time = time.monotonic()
                 variation_args = generate_topic_variation(
-                    args.creative_brief,
-                    base_persona1, base_persona1_desc,
-                    base_persona2, base_persona2_desc,
-                    initial_topic, initial_scenario, initial_style, # Pass initial values
-                    text_generator, tokenizer
+                    # Pass None for brief if not in brief mode
+                    original_brief=args.creative_brief if mode == 'brief' else None, 
+                    persona1=base_persona1, persona1_desc=base_persona1_desc,
+                    persona2=base_persona2, persona2_desc=base_persona2_desc,
+                    initial_topic=initial_topic, 
+                    initial_scenario=initial_scenario, 
+                    initial_style=initial_style,
+                    generator_pipeline=text_generator, 
+                    tokenizer=tokenizer
                 )
                 variation_gen_end_time = time.monotonic()
                 variation_gen_duration = variation_gen_end_time - variation_gen_start_time
@@ -900,16 +999,27 @@ if __name__ == "__main__":
                 llm_call_end_time = time.monotonic()
                 llm_duration = llm_call_end_time - llm_call_start_time
                 total_llm_conversation_time += llm_duration
+                # Log generation speed - INFO level
                 logging.info(f"    LLM generation for example {i+1} took {llm_duration:.2f}s.")
                 if outputs and isinstance(outputs, list) and 'generated_text' in outputs[0]:
-                    if prompt_text in outputs[0]['generated_text']:
-                         raw_conversation = outputs[0]['generated_text'][len(prompt_text):].strip()
+                    # Reliably extract generated text portion
+                    full_response_text = outputs[0]['generated_text']
+                    if prompt_text in full_response_text:
+                         raw_conversation = full_response_text[len(prompt_text):].strip()
                     else:
                         logging.warning(f"Prompt text not found in conversation generation response for example {i+1}. Using full output.")
-                        raw_conversation = outputs[0]['generated_text'].strip()
+                        raw_conversation = full_response_text.strip() # Fallback
+
                     if not raw_conversation:
                         logging.warning(f"LLM returned empty response for conversation generation (example {i+1}). Skipping.")
                         continue
+
+                    # --- Calculate and Log Token Stats ---
+                    num_new_tokens = len(tokenizer.encode(raw_conversation)) # Tokenize only the generated part
+                    tokens_per_second = num_new_tokens / llm_duration if llm_duration > 0 else 0
+                    logging.info(f"      Generated {num_new_tokens} tokens at {tokens_per_second:.2f} tokens/sec.")
+                    # --- End Token Stats ---
+
                     # Validate start prefix more carefully
                     if not (raw_conversation.startswith(f"{base_persona1}:") or raw_conversation.lstrip().startswith(f"{base_persona1}:") or \
                             raw_conversation.startswith(f"{base_persona2}:") or raw_conversation.lstrip().startswith(f"{base_persona2}:")):
@@ -955,7 +1065,7 @@ if __name__ == "__main__":
     gen_loop_end_time = time.monotonic()
     logging.info(f"Generation loop finished (took {gen_loop_end_time - gen_loop_start_time:.2f}s).")
     # Update summary logging for arg generation
-    if args.creative_brief:
+    if mode == 'brief':
         # Only one call was made
         logging.info(f"Initial argument generation LLM call took: {total_llm_arg_generation_time:.2f}s.")         
     if num_successfully_generated > 0:
@@ -1079,6 +1189,15 @@ if __name__ == "__main__":
                 persona1_image_md = f"![{final_persona1}]({base_persona1_image_url})" if base_persona1_image_url else "(No image found)"
                 persona2_image_md = f"![{final_persona2}]({base_persona2_image_url})" if base_persona2_image_url else "(No image found)"
 
+                # Add generation mode information to the card
+                generation_mode_desc = ""
+                if mode == 'brief':
+                    generation_mode_desc = f"**Mode:** Creative Brief (`--creative-brief \"{args.creative_brief}\"`)\n*   **Persona 1 Search Term:** `{args.persona1_search_term if args.persona1_search_term else 'N/A'}`\n*   **Persona 2 Search Term:** `{args.persona2_search_term if args.persona2_search_term else 'N/A'}`\n*   **Note:** Personas were generated once from the brief. Topic/Scenario/Style were varied for each example based on this brief. Parameters below reflect the *last* successful example."
+                elif mode == 'fixed_persona_variation':
+                     generation_mode_desc = f"**Mode:** Fixed Persona with Variation (`--enable-variation`)\n*   **Note:** Personas were fixed. Topic/Scenario/Style were varied for each example based on the initial context provided. Parameters below reflect the *last* successful example."
+                elif mode == 'manual':
+                     generation_mode_desc = f"**Mode:** Manual (No Variation)\n*   **Note:** All parameters (personas, topic, scenario, style) were fixed for all generated examples."
+
                 markdown_body = f"""# {final_persona1} & {final_persona2}: {final_topic} - Generated by Conversation Dataset Generator
 
 This dataset was generated using the Conversation Dataset Generator script available at [https://cahlen.github.io/conversation-dataset-generator/](https://cahlen.github.io/conversation-dataset-generator/).
@@ -1089,11 +1208,7 @@ This dataset was generated using the Conversation Dataset Generator script avail
 *   **Number of Conversations Successfully Generated:** {num_successfully_generated}
 *   **Total Turns:** {total_turns}
 *   **Model ID:** `{args.model_id}`
-*   **Creative Brief Used:** `{args.creative_brief if args.creative_brief else 'N/A (Manual Mode)'}`
-*   **Persona 1 Search Term Used:** `{args.persona1_search_term if args.persona1_search_term else 'N/A'}`
-*   **Persona 2 Search Term Used:** `{args.persona2_search_term if args.persona2_search_term else 'N/A'}`
-
-**Note:** When using Creative Brief mode, Persona 1 ({base_persona1}) and Persona 2 ({base_persona2}) were determined once from the brief and kept consistent. The topic, scenario, and style may have been automatically varied for each example based on the original brief, aiming for diversity. The parameters shown below reflect the configuration used for the *last successfully generated example*.
+{generation_mode_desc}
 
 *   **Topic:** `{final_topic}`
 *   **Scenario:** `{final_scenario}`
@@ -1226,7 +1341,7 @@ print(f"LoRA adapter saved to ./lora-adapter-output-directory")
 ```
 """
 
-                format_desc = f"""## Dataset Format (JSON Lines source)
+                format_desc = """## Dataset Format (JSON Lines source)
 
 Each row in the dataset contains the following keys:
 - conversation_id: Unique identifier for the conversation

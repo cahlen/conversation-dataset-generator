@@ -257,7 +257,14 @@ huggingface-cli login</code></div>
             </h2>
 
             <div class="bg-white rounded-xl shadow-md p-6 mb-8">
-                 <h3 class="font-bold text-xl mb-4 text-indigo-800 border-b pb-2">Modes of Operation</h3>
+                <p class="mb-4">This project provides two main scripts for generating conversational data:</p>
+                <ul class="list-disc list-inside mb-6 space-y-1">
+                    <li><code class="code-font bg-slate-100 px-1 rounded">generate.py</code>: Generates a single dataset based on command-line arguments or a creative brief.</li>
+                    <li><code class="code-font bg-slate-100 px-1 rounded">batch_generate.py</code>: Runs multiple <code class="code-font bg-slate-100 px-1 rounded">generate.py</code> processes based on a YAML configuration file, allowing for large-scale generation across different scenarios and modes.</li>
+                </ul>
+
+                <h3 class="font-bold text-xl mb-4 text-indigo-800 border-b pb-2">Single Generation (<code class="code-font">generate.py</code>)</h3>
+                 <p class="mb-4">Run <code class="code-font bg-slate-100 px-1 rounded">generate.py</code> directly using one of the available modes:</p>
                  <div class="grid md:grid-cols-2 gap-6 mb-8">
                     <div class="bg-indigo-50 rounded-lg p-6 border border-indigo-100">
                         <h4 class="font-bold text-lg mb-3 text-indigo-800 flex items-center"><i class="fas fa-hand-pointer mr-2"></i>Manual Mode</h4>
@@ -278,8 +285,34 @@ huggingface-cli login</code></div>
   --num-examples 15 \
   --persona1-search-term "Pirate captain traits"</code></div>
                      </div>
+                    <div class="bg-green-50 rounded-lg p-6 border border-green-100 md:col-span-2">
+                         <h4 class="font-bold text-lg mb-3 text-green-800 flex items-center"><i class="fas fa-sync-alt mr-2"></i>Fixed Persona + Variation Mode</h4>
+                         <p class="mb-3">Define fixed personas and initial context, then generate varied conversations.</p>
+                         <div class="code-block code-font text-xs"><code>python generate.py \
+  --enable-variation \
+  --fixed-persona1 "Mick Jagger" --fixed-persona1-desc "..." \
+  --fixed-persona2 "Ozzy Osbourne" --fixed-persona2-desc "..." \
+  --initial-topic "Modern rock music..." \
+  --initial-scenario "Backstage..." \
+  --initial-style "Amusing clash..." \
+  --num-examples 20</code></div>
+                    </div>
                  </div>
+                 <p class="mb-6 text-center">(See the <a href="#argument-reference" class="text-indigo-600 hover:underline">Argument Reference</a> or the <a href="https://github.com/cahlen/conversation-dataset-generator#argument-referencegeneratepy" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:underline">README</a> for full details on <code class="code-font bg-slate-100 px-1 rounded">generate.py</code> arguments.)</p>
 
+
+                <h3 class="font-bold text-xl mb-4 text-indigo-800 border-b pb-2">Batch Generation (<code class="code-font">batch_generate.py</code>)</h3>
+                <p class="mb-4">Use the batch script to run multiple generation processes from a YAML configuration file.</p>
+                <h4 class="font-semibold text-lg mb-3 text-slate-700">1. Create YAML Config</h4>
+                <p class="mb-3">Define runs, mixing modes as needed. Each run requires an <code class="code-font bg-slate-100 px-1 rounded">output_file</code>. See <code class="code-font bg-slate-100 px-1 rounded">examples/</code> directory for full examples.</p>
+                <div class="code-block code-font text-xs mb-6"><code># examples/your_config.yaml
+output_directory: "./batch_output"
+force_upload: false # Optional global flag
+
+runs:
+  - id: "run1_brief"
+    output_file: "run1.jsonl"
+    num_examples: 50
                 <div class="mb-8">
                     <h3 class="font-bold text-xl mb-4 text-indigo-800 border-b pb-2">Script Flow Overview</h3>
                     <div class="code-block code-font text-sm"><code>1. Start generate.py
