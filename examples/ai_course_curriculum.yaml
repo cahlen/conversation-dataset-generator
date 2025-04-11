@@ -1,0 +1,67 @@
+# ai_course_curriculum.yaml
+# Batch configuration for generating conversational datasets for an AI programming course.
+
+output_directory: "ai_course_datasets"
+force_upload: true # Force upload for all runs
+
+runs:
+  # --- Level 1: Intro to AI/ML Concepts & Python Setup ---
+  - id: "level1_intro"
+    output_file: "ai_course_level1_intro.jsonl"
+    upload_repo: "cahlen/cdg-AICourse-Level1-Intro" # Changed username
+    num_examples: 500
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct" # Or choose another suitable model
+    load_in_4bit: true
+    creative_brief: "EnfuseBot introduces fundamental AI/ML concepts (what they are, types of learning) to Learner, who knows some Python but is new to AI. Covers setting up a Python environment (venv, pip) and introduces NumPy/Pandas basics." # Changed bot name
+    # persona1_search_term: "Patient AI programming tutor EnfuseBot knowledgeable clear explanations" # Optional: Define tutor context if needed
+    persona2_search_term: "Beginner Python programmer confused about AI concepts environment setup NumPy Pandas"
+
+  # --- Level 2: Core ML Concepts & Scikit-learn Basics ---
+  - id: "level2_sklearn"
+    output_file: "ai_course_level2_sklearn.jsonl"
+    upload_repo: "cahlen/cdg-AICourse-Level2-Sklearn" # Changed username
+    num_examples: 500
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    load_in_4bit: true
+    creative_brief: "EnfuseBot explains core Machine Learning concepts (supervised vs. unsupervised learning, features, labels) and demonstrates basic Scikit-learn usage (simple classification/regression, data loading/splitting) to Learner." # Changed bot name
+    persona2_search_term: "Learner starting with Scikit-learn confused about supervised unsupervised training data fitting models"
+
+  # --- Level 3: Intro to Deep Learning & Neural Networks ---
+  - id: "level3_deeplearning"
+    output_file: "ai_course_level3_deeplearning.jsonl"
+    upload_repo: "cahlen/cdg-AICourse-Level3-DeepLearning" # Changed username
+    num_examples: 500
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    load_in_4bit: true
+    creative_brief: "EnfuseBot introduces the fundamentals of Deep Learning and Neural Networks (neurons, layers, activation functions, loss functions) and basic PyTorch/TensorFlow syntax for defining simple models to Learner." # Changed bot name
+    persona2_search_term: "Student confused about neural networks activation functions loss PyTorch TensorFlow basic syntax"
+
+  # --- Level 4: Computer Vision Fundamentals ---
+  - id: "level4_computervision"
+    output_file: "ai_course_level4_computervision.jsonl"
+    upload_repo: "cahlen/cdg-AICourse-Level4-ComputerVision" # Changed username
+    num_examples: 500
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    load_in_4bit: true
+    creative_brief: "EnfuseBot explains foundational Computer Vision concepts (how images are represented, convolutional layers - CNN basics) and shows Learner how to use pre-trained CV models for tasks like image classification." # Changed bot name
+    persona2_search_term: "Learner asking about Computer Vision CNNs image classification using pre-trained models"
+
+  # --- Level 5: Natural Language Processing Fundamentals ---
+  - id: "level5_nlp"
+    output_file: "ai_course_level5_nlp.jsonl"
+    upload_repo: "cahlen/cdg-AICourse-Level5-NLP" # Changed username
+    num_examples: 500
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    load_in_4bit: true
+    creative_brief: "EnfuseBot covers basic Natural Language Processing concepts (representing text, embeddings, basic Transformer ideas) and introduces Learner to the Hugging Face `transformers` library for simple NLP tasks." # Changed bot name
+    persona2_search_term: "Student learning NLP text representation embeddings transformers Hugging Face library basics"
+
+  # --- Level 6: Building & Training Models ---
+  - id: "level6_training"
+    output_file: "ai_course_level6_training.jsonl"
+    upload_repo: "cahlen/cdg-AICourse-Level6-Training" # Changed username
+    num_examples: 500
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    load_in_4bit: true
+    creative_brief: "EnfuseBot guides Learner through the process of training models (training loops, epochs, batches), evaluating performance (metrics like accuracy, loss), understanding overfitting/underfitting, and introduces the concept of fine-tuning (mentioning PEFT/LoRA)." # Changed bot name
+    persona2_search_term: "Learner questions about model training loops evaluation metrics overfitting fine-tuning PEFT LoRA" 

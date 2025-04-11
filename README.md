@@ -657,6 +657,85 @@ python generate.py \
 
 </details>
 
+<details>
+  <summary>Example 16: Generating a Progressive AI Course Curriculum (Batch + Creative Brief + Search)</summary>
+
+*Goal: Create a series of datasets representing levels in an AI programming course, where the learner persona evolves.* 
+
+*Approach: Use `batch_generate.py` with a YAML config. Each run defines a course level using Creative Brief mode. A consistent tutor persona (`EnfuseBot`) guides the learner. The crucial part is using `--persona2-search-term` to simulate the learner's increasing knowledge and likely points of confusion at each level.* 
+
+*YAML Configuration (`examples/ai_course_curriculum.yaml`):*
+```yaml
+# ai_course_curriculum.yaml
+output_directory: "ai_course_datasets"
+force_upload: true
+
+runs:
+  # Level 1: Intro
+  - id: "level1_intro"
+    output_file: "ai_course_level1_intro.jsonl"
+    upload_repo: "cahlen/AICourse-Level1-Intro"
+    num_examples: 500
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    load_in_4bit: true
+    creative_brief: "EnfuseBot introduces fundamental AI/ML concepts..."
+    persona2_search_term: "Beginner Python programmer confused about AI..."
+  # Level 2: Scikit-learn
+  - id: "level2_sklearn"
+    output_file: "ai_course_level2_sklearn.jsonl"
+    upload_repo: "cahlen/AICourse-Level2-Sklearn"
+    num_examples: 500
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    load_in_4bit: true
+    creative_brief: "EnfuseBot explains core ML concepts and Scikit-learn..."
+    persona2_search_term: "Learner starting Scikit-learn confused about supervised..."
+  # Level 3: Deep Learning
+  - id: "level3_deeplearning"
+    output_file: "ai_course_level3_deeplearning.jsonl"
+    upload_repo: "cahlen/AICourse-Level3-DeepLearning"
+    num_examples: 500
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    load_in_4bit: true
+    creative_brief: "EnfuseBot introduces Deep Learning fundamentals..."
+    persona2_search_term: "Student confused about neural networks activation..."
+  # Level 4: Computer Vision
+  - id: "level4_computervision"
+    output_file: "ai_course_level4_computervision.jsonl"
+    upload_repo: "cahlen/AICourse-Level4-ComputerVision"
+    num_examples: 500
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    load_in_4bit: true
+    creative_brief: "EnfuseBot explains Computer Vision fundamentals..."
+    persona2_search_term: "Learner asking about Computer Vision CNNs..."
+  # Level 5: NLP
+  - id: "level5_nlp"
+    output_file: "ai_course_level5_nlp.jsonl"
+    upload_repo: "cahlen/AICourse-Level5-NLP"
+    num_examples: 500
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    load_in_4bit: true
+    creative_brief: "EnfuseBot covers basic NLP concepts..."
+    persona2_search_term: "Student learning NLP text representation embeddings..."
+  # Level 6: Training
+  - id: "level6_training"
+    output_file: "ai_course_level6_training.jsonl"
+    upload_repo: "cahlen/AICourse-Level6-Training"
+    num_examples: 500
+    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
+    load_in_4bit: true
+    creative_brief: "EnfuseBot guides Learner through training models..."
+    persona2_search_term: "Learner questions about model training loops evaluation..."
+```
+
+*Command to Run:* 
+```bash
+python batch_generate.py examples/ai_course_curriculum.yaml
+```
+
+*Explanation: This batch job generates 6 datasets, each simulating a stage in an AI course. By adjusting the `creative_brief` and `persona2_search_term` for each run, the conversations adapt to the expected learner level, creating targeted data for training level-specific chatbot LoRAs.* 
+
+</details>
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Output Format
