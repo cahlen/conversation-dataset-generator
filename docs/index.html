@@ -434,10 +434,11 @@ python batch_generate.py examples/batch_config.yaml</code></div>
                      <i class="fas fa-chevron-down transform transition-transform duration-200"></i>
                  </summary>
                  <div class="mt-6">
-                     <div class="flex border-b border-gray-200 mb-6">
+                     <div class="flex border-b border-gray-200 mb-6 flex-wrap">
                          <button onclick="switchTab(event, 'manual-examples')" class="tab-button py-3 px-5 font-medium border-b-2 border-transparent hover:text-indigo-600 active">Manual Mode</button>
                          <button onclick="switchTab(event, 'brief-examples')" class="tab-button py-3 px-5 font-medium border-b-2 border-transparent hover:text-purple-600">Brief Mode</button>
-                          <button onclick="switchTab(event, 'fixed-examples')" class="tab-button py-3 px-5 font-medium border-b-2 border-transparent hover:text-green-600">Fixed Persona</button>
+                         <button onclick="switchTab(event, 'fixed-examples')" class="tab-button py-3 px-5 font-medium border-b-2 border-transparent hover:text-green-600">Fixed Persona</button>
+                         <button onclick="switchTab(event, 'trending-examples')" class="tab-button py-3 px-5 font-medium border-b-2 border-transparent hover:text-red-600">Trending Events</button>
                      </div>
 
                     <!-- Manual Examples Content -->
@@ -514,7 +515,43 @@ python batch_generate.py examples/batch_config.yaml</code></div>
                             </div>
                          </div>
                      </div>
-                    <p class="mt-6 text-center text-xs text-slate-500">See the <a href="https://github.com/cahlen/conversation-dataset-generator#examples" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:underline">full list of 12+ examples in the README</a>.</p>
+                    <!-- NEW: Trending Events Examples Content -->
+                    <div id="trending-examples" class="tab-content">
+                         <p class="text-sm text-slate-600 mb-4 italic text-center">Leverage Creative Brief mode with web search (<code class="code-font text-xs">--personaX-search-term</code>) to generate dialogue grounded in current events.</p>
+                         <div class="space-y-6">
+                             <div class="example-card bg-slate-50 p-5 rounded-lg shadow-sm border-l-4 border-red-400">
+                                 <div class="flex justify-between items-start mb-3"><h4 class="font-bold text-base text-red-800">Celebrity Controversy (Rourke/Siwa)</h4><span class="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full font-medium">Current Events</span></div>
+                                 <div class="code-block code-font text-xs"><code>python generate.py \
+  --creative-brief "Discussion: Mickey Rourke & JoJo Siwa on CBB UK remarks/apologies." \
+  --persona1-search-term "Mickey Rourke CBB homophobic comments" \
+  --persona2-search-term "JoJo Siwa response apology homophobic remark" \
+  --num-examples 100 \
+  --output-file trending_Rourke_Siwa.jsonl \
+  --load-in-4bit</code></div>
+                             </div>
+                             <div class="example-card bg-slate-50 p-5 rounded-lg shadow-sm border-l-4 border-orange-400">
+                                 <div class="flex justify-between items-start mb-3"><h4 class="font-bold text-base text-orange-800">On-Set Tensions (Isaacs/Goggins)</h4><span class="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded-full font-medium">Current Events</span></div>
+                                <div class="code-block code-font text-xs"><code>python generate.py \
+  --creative-brief "Discussion: Jason Isaacs & Walton Goggins on 'White Lotus' feud rumors." \
+  --persona1-search-term "Jason Isaacs White Lotus arguments on set" \
+  --persona2-search-term "Walton Goggins feud rumors White Lotus" \
+  --num-examples 100 \
+  --output-file trending_Isaacs_Goggins.jsonl \
+  --load-in-4bit</code></div>
+                             </div>
+                             <div class="example-card bg-slate-50 p-5 rounded-lg shadow-sm border-l-4 border-teal-400">
+                                 <div class="flex justify-between items-start mb-3"><h4 class="font-bold text-base text-teal-800">Trademark Battle (Perry/Taylor)</h4><span class="bg-teal-100 text-teal-800 text-xs px-2 py-1 rounded-full font-medium">Current Events</span></div>
+                                <div class="code-block code-font text-xs"><code>python generate.py \
+  --creative-brief "Discussion: Katy Perry & Katie Jane Taylor on trademark battle over clothing brand." \
+  --persona1-search-term "Katy Perry trademark battle clothing" \
+  --persona2-search-term "Katie Jane Taylor trademark dispute Katy Perry" \
+  --num-examples 100 \
+  --output-file trending_Perry_Taylor.jsonl \
+  --load-in-4bit</code></div>
+                             </div>
+                         </div>
+                     </div>
+                    <p class="mt-6 text-center text-xs text-slate-500">See the <a href="https://github.com/cahlen/conversation-dataset-generator#examples" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:underline">full list of examples in the README</a>.</p>
                  </div>
             </details>
 

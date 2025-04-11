@@ -593,6 +593,70 @@ python generate.py \
 
 </details>
 
+**Leveraging Web Search for Current Events & Trending Topics**
+
+One powerful application of Creative Brief mode with `--personaX-search-term` is generating dialogue grounded in current events, recent news, or ongoing public discussions involving specific individuals. By providing relevant search terms, you can create datasets reflecting timely controversies, collaborations, or statements.
+
+<details>
+  <summary>Example 13: Generating Dialogue around a Celebrity Controversy (Creative Brief + Search)</summary>
+
+*Goal: Create varied conversations reflecting the public discourse surrounding a recent celebrity feud or controversial statement.*
+
+```bash
+python generate.py \
+  --creative-brief "A discussion between Mickey Rourke and JoJo Siwa about the trending controversy on Celebrity Big Brother UK following homophobic remarks and subsequent apologies." \
+  --persona1-search-term "Mickey Rourke Celebrity Big Brother homophobic comments" \
+  --persona2-search-term "JoJo Siwa response apology homophobic remark" \
+  --num-examples 100 \
+  --output-file trending_MickeyRourke_JoJoSiwa_100.jsonl \
+  --model-id meta-llama/Meta-Llama-3-8B-Instruct \
+  --load-in-4bit
+```
+
+*Explanation: This uses a specific, current controversy as the brief. The `--personaX-search-term` arguments pull in recent context about the remarks and responses, enabling the LLM to generate varied, relevant conversations reflecting the situation.* 
+
+</details>
+
+<details>
+  <summary>Example 14: Generating Dialogue around On-Set Tensions (Creative Brief + Search)</summary>
+
+*Goal: Generate conversations reflecting reported tensions or rumors between actors on a popular show.*
+
+```bash
+python generate.py \
+  --creative-brief "A discussion between Jason Isaacs and Walton Goggins about the trending on-set tensions and feud rumors during the filming of 'White Lotus'." \
+  --persona1-search-term "Jason Isaacs White Lotus arguments on set" \
+  --persona2-search-term "Walton Goggins feud rumors White Lotus" \
+  --num-examples 100 \
+  --output-file trending_JasonIsaacs_WaltonGoggins_100.jsonl \
+  --model-id meta-llama/Meta-Llama-3-8B-Instruct \
+  --load-in-4bit
+```
+
+*Explanation: Focuses on reported on-set dynamics. The search terms help ground the personas in the context of the show and the alleged feud, allowing for varied speculative conversations.*
+
+</details>
+
+<details>
+  <summary>Example 15: Generating Dialogue around a Business/Legal Dispute (Creative Brief + Search)</summary>
+
+*Goal: Create conversations reflecting a high-profile trademark battle or legal dispute between public figures.*
+
+```bash
+python generate.py \
+  --creative-brief "A discussion between Katy Perry and Katie Jane Taylor about the trending trademark battle over a clothing brand and intellectual property rights." \
+  --persona1-search-term "Katy Perry trademark battle clothing" \
+  --persona2-search-term "Katie Jane Taylor trademark dispute Katy Perry" \
+  --num-examples 100 \
+  --output-file trending_KatyPerry_KatieJaneTaylor_100.jsonl \
+  --model-id meta-llama/Meta-Llama-3-8B-Instruct \
+  --load-in-4bit
+```
+
+*Explanation: Uses a specific business dispute. Search terms provide context on the legal battle, enabling the LLM to generate conversations about intellectual property, brand identity, and the specifics of the case.*
+
+</details>
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Output Format
