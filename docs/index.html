@@ -371,34 +371,33 @@ python batch_generate.py examples/batch_config.yaml</code></div>
 
             <!-- Script Flow, Args, Examples, Output in collapsible sections or tabs -->
             <details class="bg-white rounded-xl shadow-inner p-6 mb-6 border border-slate-200 open:ring-2 open:ring-indigo-200 transition-all">
-                <summary class="font-bold text-lg text-indigo-800 cursor-pointer hover:text-indigo-600 transition-colors flex justify-between items-center">
+                <summary class="font-bold text-lg text-indigo-800 cursor-pointer hover:text-indigo-600 transition-colors flex justify-between items-center list-none">
                     <span><i class="fas fa-code-branch mr-2"></i>Script Flow & Argument Reference</span>
                     <i class="fas fa-chevron-down transform transition-transform duration-200"></i>
                 </summary>
                  <div class="mt-6 space-y-6">
                     <div>
-                         <h4 class="font-bold text-md mb-3 text-slate-700">Script Flow Overview (<code class="code-font">generate.py</code>)</h4>
+                         <h4 class="font-bold text-md mb-3 text-slate-700 pt-4 border-t border-slate-200">Script Flow Overview (<code class="code-font text-sm">generate.py</code>)</h4>
                         <div class="code-block code-font text-xs"><code>1. Start generate.py
-2. Check arguments:
-   |--&gt; If --delete-repo: Confirm &amp; Delete -&gt; Exit.
+   |--&gt; If --delete-repo: Confirm & Delete -> Exit.
    |--&gt; If --creative-brief:
-   |     [Optional Web Search] -&gt; Gen Base Args (LLM) -&gt; [Optional Image Search]
+   |     [Optional Web Search] -> Gen Base Args (LLM) -> [Optional Image Search]
    |     Loop N (--num-examples):
-   |       Gen Topic Variation (LLM) -&gt; Gen Conversation (LLM) -&gt; Parse &amp; Store
-   |     -&gt; Save JSONL -&gt; [Optional Upload] -&gt; Exit.
+   |       Gen Topic Variation (LLM) -> Gen Conversation (LLM) -> Parse & Store
+   |     -> Save JSONL -> [Optional Upload] -> Exit.
    |--&gt; If --enable-variation (Fixed Persona):
    |     Use fixed personas & initial context -> [Optional Image Search]
    |     Loop N (--num-examples):
    |        Gen Topic Variation (LLM) -> Gen Conversation (LLM) -> Parse & Store
    |     -> Save JSONL -> [Optional Upload] -> Exit.
    |--&gt; Else (Manual Mode):
-   |     Use provided args -&gt; [Optional Image Search]
+   |     Use provided args -> [Optional Image Search]
    |     Loop N (--num-examples):
-   |       Gen Conversation (LLM) -&gt; Parse &amp; Store
-   |     -&gt; Save JSONL -&gt; [Optional Upload] -&gt; Exit.</code></div>
+   |       Gen Conversation (LLM) -> Parse & Store
+   |     -> Save JSONL -> [Optional Upload] -> Exit.</code></div>
                      </div>
                     <div>
-                         <h4 class="font-bold text-md mb-3 text-slate-700">Key Argument Reference (<code class="code-font">generate.py</code>)</h4>
+                         <h4 class="font-bold text-md mb-3 text-slate-700 pt-4 border-t border-slate-200">Key Argument Reference (<code class="code-font text-sm">generate.py</code>)</h4>
                          <p class="text-sm text-slate-600 mb-4">Provide EITHER <code class="code-font bg-purple-100 text-purple-800 px-1 rounded">--creative-brief</code> OR manual/fixed args.</p>
                          <div class="grid md:grid-cols-2 gap-x-6 gap-y-2 code-font text-xs text-slate-700">
                              <div><code class="text-purple-700 font-medium">--creative-brief</code>: High-level concept (Brief Mode).</div>
@@ -415,7 +414,7 @@ python batch_generate.py examples/batch_config.yaml</code></div>
                              <div><code class="text-green-700 font-medium">--initial-style</code>: Seed style (Fixed Mode).</div>
                              <div><code class="text-indigo-700">--include-points</code>: Keywords (Manual/Fixed).</div>
                               <div><code class="text-green-700 font-medium">--enable-variation</code>: Enable var (Fixed Mode).</div>
-                             <div class="md:col-span-2 border-t pt-2 mt-2"></div>
+                             <div class="md:col-span-2 border-t border-slate-200 pt-2 mt-2"></div> <!-- Added border for separation -->
                              <div><code class="font-medium">--num-examples</code>: # conversations.</div>
                              <div><code class="font-medium">--output-file</code>: Output <code class="bg-slate-200 px-1 rounded">.jsonl</code> path.</div>
                              <div><code class="font-medium">--model-id</code>: HF generation model.</div>
@@ -429,7 +428,7 @@ python batch_generate.py examples/batch_config.yaml</code></div>
             </details>
 
             <details class="bg-white rounded-xl shadow-inner p-6 mb-6 border border-slate-200 open:ring-2 open:ring-purple-200 transition-all">
-                <summary class="font-bold text-lg text-purple-800 cursor-pointer hover:text-purple-600 transition-colors flex justify-between items-center">
+                <summary class="font-bold text-lg text-purple-800 cursor-pointer hover:text-purple-600 transition-colors flex justify-between items-center list-none">
                      <span><i class="fas fa-flask mr-2"></i>Generation Examples</span>
                      <i class="fas fa-chevron-down transform transition-transform duration-200"></i>
                  </summary>
@@ -519,13 +518,13 @@ python batch_generate.py examples/batch_config.yaml</code></div>
             </details>
 
              <details class="bg-white rounded-xl shadow-inner p-6 mb-6 border border-slate-200 open:ring-2 open:ring-green-200 transition-all">
-                 <summary class="font-bold text-lg text-green-800 cursor-pointer hover:text-green-600 transition-colors flex justify-between items-center">
+                 <summary class="font-bold text-lg text-green-800 cursor-pointer hover:text-green-600 transition-colors flex justify-between items-center list-none">
                      <span><i class="fas fa-file-alt mr-2"></i>Output Format & Fine-Tuning Notes</span>
                       <i class="fas fa-chevron-down transform transition-transform duration-200"></i>
                  </summary>
                  <div class="mt-6 grid md:grid-cols-2 gap-6">
                      <div>
-                         <h4 class="font-bold text-md mb-3 text-slate-700">Output Format (<code class="code-font">.jsonl</code>)</h4>
+                         <h4 class="font-bold text-md mb-3 text-slate-700 pt-4 border-t border-slate-200">Output Format (<code class="code-font text-sm">.jsonl</code>)</h4>
                          <p class="text-sm text-slate-600 mb-3">Saved locally and optionally uploaded to HF Hub. Each line is a turn:</p>
                         <div class="code-block code-font text-xs"><code>{"conversation_id": 0, "turn_number": 0, "role": "human", ...}
 {"conversation_id": 0, "turn_number": 1, "role": "gpt", ...}
@@ -534,7 +533,7 @@ python batch_generate.py examples/batch_config.yaml</code></div>
                           <p class="mt-3 text-xs text-slate-500">See the <a href="https://github.com/cahlen/conversation-dataset-generator#output-format" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:underline">full output details in the README</a>.</p>
                      </div>
                      <div>
-                         <h4 class="font-bold text-md mb-3 text-slate-700">Model & Fine-Tuning Notes</h4>
+                         <h4 class="font-bold text-md mb-3 text-slate-700 pt-4 border-t border-slate-200">Model & Fine-Tuning Notes</h4>
                           <ul class="list-disc list-inside space-y-1.5 text-sm text-slate-700 pl-1">
                              <li>Default Model: <code class="code-font bg-slate-200 px-1 py-0.5 rounded text-xs">Meta-Llama-3-8B-Instruct</code> (change via <code class="text-xs">--model-id</code>).</li>
                              <li>Ideal for PEFT methods like **LoRA** for style/persona/topic specialization.</li>
