@@ -768,6 +768,22 @@ Understanding where your data goes:
 
 The final dataset on the Hub will have the full `conversation_id`, `turn_number`, `role`, `speaker_name`, `topic`, `scenario`, `style`, `include_points`, `content` structure and should display correctly in the dataset previewer.
 
+**Loading the Dataset from the Hub:**
+
+Once uploaded, the dataset can be easily loaded using the Hugging Face `datasets` library:
+
+```python
+from datasets import load_dataset
+
+# Replace with your actual repository ID
+# Ensure you are logged in (`huggingface-cli login`) if the dataset is private
+dataset_repo_id = "YourUsername/YourDatasetName" 
+ds = load_dataset(dataset_repo_id)
+
+# Access the data (e.g., the 'train' split)
+print(ds['train'][0]) 
+```
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Model & Fine-Tuning Notes
