@@ -143,3 +143,5 @@ cython_debug/
 
 # Hugging Face cache directory
 .cache/ 
+
+robot_config.yaml
