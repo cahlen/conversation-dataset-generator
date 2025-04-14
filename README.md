@@ -98,6 +98,7 @@ This project relies on several key libraries:
 *   [![Pandas][Pandas.pydata]][Pandas-url]
 *   [![DuckDuckGo Search][DuckDuckGo-Search-pypi]][DuckDuckGo-Search-url] (Optional, for Brief Mode web search)
 *   [![BitsAndBytes][BitsAndBytes-pypi]][BitsAndBytes-url] (Optional, for LoRA examples)
+*   [![TQDM][TQDM-pypi]][TQDM-url] (For progress bars)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -111,7 +112,7 @@ To get a local copy up and running follow these simple steps.
 *   **Python:** Version 3.8+ is required.
 *   **GPU:** A powerful GPU with sufficient VRAM and CUDA support is *highly recommended*, especially for Creative Brief mode which involves multiple LLM calls per example. Manual mode is less demanding but still benefits from GPU acceleration.
 *   **CPU/Memory:** A capable CPU and adequate RAM are needed.
-*   **Internet Connection:** Required if using the `--personaX-search-term` arguments in Creative Brief mode for DuckDuckGo searches.
+*   **Internet Connection:** Required if using the `--personaX-search-term` arguments in Creative Brief mode for DuckDuckGo searches or for image searches.
 *   **Dependencies:** Install necessary Python packages as described below.
 
 ### Installation
@@ -130,7 +131,7 @@ To get a local copy up and running follow these simple steps.
     ```bash
     pip install -r requirements.txt
     ```
-    *Note: If `torch` is included in `requirements.txt`, pip might install a CPU or older CUDA version. For optimal GPU usage, consider installing PyTorch separately first, matching your CUDA version - see step 4.*
+    *Note: If `torch` is included in `requirements.txt`, pip might install a CPU or older CUDA version. For optimal GPU usage, consider installing PyTorch separately first, matching your CUDA version - see step 4. The `requirements.txt` file also includes `tqdm` for progress bars.*
 4.  **Install Specific PyTorch Version (Optional but Recommended for GPU):**
     Install PyTorch *after* other dependencies, matching your CUDA setup. Find the correct command for your system on the [official PyTorch website](https://pytorch.org/get-started/locally/).
     ```bash
@@ -147,6 +148,10 @@ To get a local copy up and running follow these simple steps.
         ```bash
         pip install -U peft trl bitsandbytes
         ```
+    *   For progress bars (likely already installed via `requirements.txt`):
+        ```bash
+        pip install tqdm
+        ```
 6.  **Login to Hugging Face Hub (Optional, for uploading):**
     To use the `--upload-to-hub` feature, you need to log in:
     ```bash
@@ -161,7 +166,7 @@ To get a local copy up and running follow these simple steps.
 
 This project provides two main scripts for generating conversational data:
 
-1.  `generate.py`: Generates a single dataset based on command-line arguments or a creative brief.
+1.  `generate.py`: Generates a single dataset based on command-line arguments or a creative brief. Shows progress using `tqdm`.
 2.  `batch_generate.py`: Runs multiple `generate.py` processes based on a YAML configuration file, allowing for large-scale generation across different scenarios and modes.
 
 ### Single Generation (`generate.py`)
@@ -176,11 +181,11 @@ Provide all conversation parameters explicitly on the command line.
 # Activate your virtual environment first!
 source venv/bin/activate 
 
-python generate.py --persona1 \"Wizard\" --persona1-desc \"Grumpy, old, prone to muttering spells\" \
-                   --persona2 \"Knight\" --persona2-desc \"Overly cheerful, oblivious to Wizard's mood\" \
-                   --topic \"The best way to polish armor without magic\" \
-                   --scenario \"Stuck in a dungeon waiting room with bad Muzak\" \
-                   --style \"Comedic, bickering, contrasting personalities\" \
+python generate.py --persona1 "Wizard" --persona1-desc "Grumpy, old, prone to muttering spells" \
+                   --persona2 "Knight" --persona2-desc "Overly cheerful, oblivious to Wizard's mood" \
+                   --topic "The best way to polish armor without magic" \
+                   --scenario "Stuck in a dungeon waiting room with bad Muzak" \
+                   --style "Comedic, bickering, contrasting personalities" \
                    --num-examples 10 \
                    --output-file manual_wizard_knight.jsonl \
                    --model-id meta-llama/Meta-Llama-3-8B-Instruct 
@@ -188,19 +193,19 @@ python generate.py --persona1 \"Wizard\" --persona1-desc \"Grumpy, old, prone to
 
 **2. Creative Brief Mode (Automatic Argument & Topic Variation)**
 
-Provide a high-level brief. The script generates detailed parameters (personas, topic, etc.) using the LLM, optionally incorporating web search context, and then creates topic/scenario variations for each example.
+Provide a high-level brief. The script generates detailed parameters (personas, topic, etc.) using the LLM, optionally incorporating **web search context** (via `--personaX-search-term`) and **image search** for the personas. It then creates topic/scenario variations for each example while keeping the personas constant.
 
 ```bash
 # Without web search
-python generate.py --creative-brief \"A pirate captain trying to order coffee at a modern minimalist cafe\" \
+python generate.py --creative-brief "A pirate captain trying to order coffee at a modern minimalist cafe" \
                    --num-examples 15 \
                    --output-file brief_pirate.jsonl
 
 # With web search for specific personas
-python generate.py --creative-brief \"Conversation between Tech Lead Tina and Junior Dev Joe about effective code reviews\" \
+python generate.py --creative-brief "Conversation between Tech Lead Tina and Junior Dev Joe about effective code reviews" \
                    --num-examples 10 \
-                   --persona1-search-term \"Typical Tech Lead responsibilities personality traits communication\" \
-                   --persona2-search-term \"Junior Developer challenges learning curve receiving feedback\" \
+                   --persona1-search-term "Typical Tech Lead responsibilities personality traits communication" \
+                   --persona2-search-term "Junior Developer challenges learning curve receiving feedback" \
                    --output-file brief_tech_review.jsonl
 ```
 
@@ -211,16 +216,52 @@ Define fixed personas and an initial context, then enable variation to generate 
 ```bash
 python generate.py \
   --enable-variation \
-  --fixed-persona1 \"Mick Jagger\" \
-  --fixed-persona1-desc \"Iconic frontman...\" \
-  --fixed-persona2 \"Ozzy Osbourne\" \
-  --fixed-persona2-desc \"The Prince of Darkness...\" \
-  --initial-topic \"Modern rock music and reality TV\" \
-  --initial-scenario \"Backstage at an awards show\" \
-  --initial-style \"Amusing clash...\" \
+  --fixed-persona1 "Mick Jagger" \
+  --fixed-persona1-desc "Iconic frontman..." \
+  --fixed-persona2 "Ozzy Osbourne" \
+  --fixed-persona2-desc "The Prince of Darkness..." \
+  --initial-topic "Modern rock music and reality TV" \
+  --initial-scenario "Backstage at an awards show" \
+  --initial-style "Amusing clash..." \
   --num-examples 20 \
   --output-file fixed_jagger_ozzy.jsonl \
-  --load-in-4bit 
+  --load-in-4bit \
+  # Note: --include-points can also be used here if desired
+```
+
+**4. Random Pairings Mode (with Character Pools)**
+
+Generate conversations using random pairs of characters selected from predefined character pools (YAML files). Each conversation will feature a different pairing from your character pools.
+
+```bash
+python generate.py \
+  --random-pairings \
+  --character-pool character-config/got_characters.yaml \
+  --persona-desc-pool character-config/got_descriptions.yaml \
+  --initial-topic "Discussing the Iron Throne succession" \
+  --initial-scenario "In the Great Hall of Winterfell" \
+  --initial-style "Tense strategic conversation with occasional wit" \
+  --num-examples 10 \
+  --output-file got_random_pairings.jsonl \
+  --model-id meta-llama/Meta-Llama-3-8B-Instruct
+```
+
+**5. Random Pairings with Variation**
+
+Combine random character pairings with topic/scenario variation for maximum diversity. This generates conversations with different characters AND different topics/scenarios for each example.
+
+```bash
+python generate.py \
+  --random-pairings \
+  --enable-variation \
+  --character-pool character-config/avengers_chars.yaml \
+  --persona-desc-pool character-config/avengers_desc.yaml \
+  --initial-topic "Planning a team-building exercise for the Avengers" \
+  --initial-scenario "In the Avengers Tower common room" \
+  --initial-style "Humorous and character-driven conversation with friendly banter" \
+  --num-examples 20 \
+  --output-file avengers_random_varied.jsonl \
+  --model-id meta-llama/Meta-Llama-3-8B-Instruct
 ```
 
 (See Argument Reference below for all available options for `generate.py`)
@@ -311,8 +352,8 @@ Tailor your generation precisely. Provide EITHER `--creative-brief` OR the set o
 
 **Mode Selection**
 
-*   `--creative-brief STR`: Provide a high-level concept (e.g., *"Godzilla ordering takeout sushi"*). The script uses the LLM specified by `--model-id` to first generate the detailed arguments (topic, personas, etc.) automatically, potentially informed by web context if search terms are provided (see below). Then, for each requested example, it generates a *new, related* topic/scenario variation while keeping the initially generated personas consistent. If you provide this, any manual `--topic`, `--persona1`, etc., arguments are ignored.
-*   `--delete-repo USERNAME/REPO_ID [USERNAME/REPO_ID ...]`: **DANGER ZONE.** Use this argument *instead of* generation arguments to permanently delete one or more Hugging Face Hub dataset repositories. **THIS ACTION IS IRREVERSIBLE.** You will be asked for confirmation.
+*   `--creative-brief STR`: Provide a high-level concept (e.g., *"Godzilla ordering takeout sushi"*). The script uses the LLM specified by `--model-id` to first generate the detailed arguments (topic, personas, etc.) automatically, potentially informed by web context if search terms are provided (see below). It also performs an **image search** for the personas. Then, for each requested example, it generates a *new, related* topic/scenario variation while keeping the initially generated personas consistent. If you provide this, any manual or fixed-persona arguments are ignored.
+*   `--delete-repo USERNAME/REPO_ID [USERNAME/REPO_ID ...]`: **DANGER ZONE.** Use this argument *instead of* generation arguments to permanently delete one or more Hugging Face Hub dataset repositories. **THIS ACTION IS IRREVERSIBLE.** You will be asked for confirmation. Accepts multiple space-separated repository IDs.
 
 **Creative Brief Web Context (Optional - Only used with `--creative-brief`)**
 
@@ -321,22 +362,49 @@ Tailor your generation precisely. Provide EITHER `--creative-brief` OR the set o
 
 **Detailed Arguments (Manual Mode)**
 
-*(Required if not using `--creative-brief` or `--delete-repo`)*
+*(Required if not using `--creative-brief`, `--delete-repo`, or Fixed Persona Mode)*
 
 *   `--topic STR`: Central topic/subject of the conversation.
-*   `--persona1 STR`: Name of the first speaker (this name will map to the `human` role in the output data).
+*   `--persona1 STR`: Name of the first speaker (this name will map to the `human` role in the output data). An **image search** will be performed using this name.
 *   `--persona1-desc STR`: Detailed description of the first speaker's personality, background, speech patterns, quirks, etc. (Crucial for generation quality!).
-*   `--persona2 STR`: Name of the second speaker (maps to the `gpt` role).
+*   `--persona2 STR`: Name of the second speaker (maps to the `gpt` role). An **image search** will be performed using this name.
 *   `--persona2-desc STR`: Detailed description of the second speaker.
 *   `--scenario STR`: The setting, situation, or context for the conversation.
 *   `--style STR`: Desired tone, mood, and linguistic style (e.g., "formal debate", "casual chat", "Shakespearean insults", "valley girl slang", "hardboiled detective noir").
-*   `--include-points STR`: Optional comma-separated list of keywords or talking points the conversation should try to naturally incorporate (e.g., `"time travel paradox,grandfather,temporal mechanics"`).
+*   `--include-points STR`: Optional comma-separated list of keywords or talking points the conversation should try to naturally incorporate (e.g., `"time travel paradox,grandfather,temporal mechanics"`). (Default: `None`)
+
+**Fixed Persona + Variation Mode Arguments**
+
+*(Required if using `--enable-variation`. Cannot be used with `--creative-brief` or manual persona/topic arguments)*
+
+*   `--enable-variation`: **Must be set** to activate this mode. Enables topic/scenario/style variation based on initial context while keeping personas fixed.
+*   `--fixed-persona1 STR`: Fixed name for Persona 1. An **image search** will be performed using this name.
+*   `--fixed-persona1-desc STR`: Fixed description for Persona 1.
+*   `--fixed-persona2 STR`: Fixed name for Persona 2. An **image search** will be performed using this name.
+*   `--fixed-persona2-desc STR`: Fixed description for Persona 2.
+*   `--initial-topic STR`: Seed topic used for the first example and as a basis for variations.
+*   `--initial-scenario STR`: Seed scenario used for the first example and as a basis for variations.
+*   `--initial-style STR`: Seed style used for the first example and as a basis for variations.
+*   `--include-points STR`: Optional comma-separated list of keywords or talking points, same as in Manual Mode. (Default: `None`)
+
+**Random Pairings Mode Arguments**
+
+*(Required if using `--random-pairings`. Cannot be used with `--creative-brief`, `--persona1`, or Fixed Persona arguments)*
+
+*   `--random-pairings`: **Must be set** to activate this mode. Enables selection of random character pairs from pools for each conversation.
+*   `--character-pool STR`: Path to a YAML file containing a list of character names under a `characters` key. File should be in the `character-config` directory or include a full path.
+*   `--persona-desc-pool STR`: Path to a YAML file containing a dictionary of character names to descriptions under a `descriptions` key. File should be in the `character-config` directory or include a full path.
+*   `--enable-variation`: Optional flag that, when combined with `--random-pairings`, enables topic/scenario/style variation for each conversation.
+*   `--initial-topic STR`: Base topic used for conversations (or as a seed for variations if `--enable-variation` is set).
+*   `--initial-scenario STR`: Base scenario used for conversations (or as a seed for variations if `--enable-variation` is set).
+*   `--initial-style STR`: Base style used for conversations (or as a seed for variations if `--enable-variation` is set).
+*   `--include-points STR`: Optional comma-separated list of keywords or talking points, same as in Manual Mode. (Default: `None`)
 
 **General Arguments (Applicable to Generation Modes)**
 
 *   `--num-examples INT`: How many distinct conversation examples to generate. (Default: 3)
 *   `--output-file PATH`: Path to save the output JSON Lines (`.jsonl`) file. (Default: `generated_data.jsonl`)
-*   `--model-id STR`: Hugging Face model ID (e.g., `meta-llama/Meta-Llama-3-8B-Instruct`). **Crucially, this model is used for BOTH the conversation generation AND the argument generation step if `--creative-brief` is used.** Choose a strong instruction-following model. (Default: 'meta-llama/Meta-Llama-3-8B-Instruct')
+*   `--model-id STR`: Hugging Face model ID (e.g., `meta-llama/Meta-Llama-3-8B-Instruct`). **Crucially, this model is used for BOTH the conversation generation AND the argument/variation generation steps.** Choose a strong instruction-following model. (Default: `meta-llama/Meta-Llama-3-8B-Instruct`)
 *   `--max-new-tokens INT`: Max tokens the LLM can generate in the main conversation step. Adjust based on desired conversation length and model limits. (Default: 768)
 *   `--upload-to-hub STR`: Your Hugging Face Hub repository ID (e.g., `YourUsername/YourDatasetName`) to upload the results to. The script will create the repo if it doesn't exist. Requires prior login. (Default: None)
 *   `--force-upload`: Skip the confirmation prompt when uploading to the Hub. Use with caution! (Default: False)
@@ -763,8 +831,8 @@ Understanding where your data goes:
     *   `content` (string): The text content of the turn.
 
 2.  **Hugging Face Hub Upload (Optional):** If you provide a repo ID via `--upload-to-hub`, the script performs a two-step upload after generation (and optional local validation):
-    *   **Step 1: Load & Push Dataset:** It loads the local `.jsonl` file into a Hugging Face `DatasetDict` object (`datasets.load_dataset('json', ...)`), ensuring features like `conversation_id` and `turn_number` are correctly typed (as `int64`). It then generates a detailed dataset card (README) using the run parameters (based on the *last successfully generated example* when using topic variation), **including any found persona images**, and attaches it to the `DatasetInfo`. Crucially, the `DatasetInfo` includes the `Features` definition matching the full schema. Finally, it pushes the `DatasetDict` to your Hub repository using `push_to_hub()`.
-    *   **Step 2: Upload Custom README:** It retrieves the generated dataset card content from the `DatasetInfo`, encodes it to bytes (`utf-8`), and uploads these bytes directly as the `README.md` file using `HfApi.upload_file`. This ensures your repository displays a rich, informative dataset card reflecting the generation parameters and the full data schema.
+    *   **Step 1: Load & Push Dataset:** It loads the local `.jsonl` file into a Hugging Face `DatasetDict` object (`datasets.load_dataset('json', ...)`), ensuring features like `conversation_id` and `turn_number` are correctly typed (as `int64`). It then generates a detailed dataset card (README) using the run parameters (based on the *last successfully generated example* when using topic variation), including **any found persona images** and a description of the **generation mode used**, and attaches it to the `DatasetInfo`. Crucially, the `DatasetInfo` includes the `Features` definition matching the full schema. Finally, it pushes the `DatasetDict` to your Hub repository using `push_to_hub()`.
+    *   **Step 2: Upload Custom README:** It retrieves the generated dataset card content from the `DatasetInfo`, encodes it to bytes (`utf-8`), and uploads these bytes directly as the `README.md` file using `HfApi.upload_file`. This ensures your repository displays a rich, informative dataset card reflecting the generation parameters, found images, generation mode, and the full data schema.
 
 The final dataset on the Hub will have the full `conversation_id`, `turn_number`, `role`, `speaker_name`, `topic`, `scenario`, `style`, `include_points`, `content` structure and should display correctly in the dataset previewer.
 
@@ -854,6 +922,7 @@ Project Link: [https://github.com/cahlen/conversation-dataset-generator](https:/
 *   [Pandas](https://pandas.pydata.org/)
 *   [DuckDuckGo Search Library](https://pypi.org/project/duckduckgo-search/)
 *   [Img Shields](https://shields.io)
+*   [TQDM](https://github.com/tqdm/tqdm)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -879,3 +948,5 @@ Project Link: [https://github.com/cahlen/conversation-dataset-generator](https:/
 [DuckDuckGo-Search-url]: https://pypi.org/project/duckduckgo-search/
 [BitsAndBytes-pypi]: https://img.shields.io/badge/bitsandbytes-optional-purple?style=for-the-badge
 [BitsAndBytes-url]: https://pypi.org/project/bitsandbytes/
+[TQDM-pypi]: https://img.shields.io/badge/tqdm-✓-green?style=for-the-badge&logo=python
+[TQDM-url]: https://pypi.org/project/tqdm/

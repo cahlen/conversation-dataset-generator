@@ -18,6 +18,8 @@ import pandas as pd # Added for pandas import
 from datasets.utils.logging import set_verbosity_error as datasets_set_verbosity_error
 from transformers.utils import logging as transformers_logging
 from tqdm import tqdm # Import tqdm for progress bars
+import yaml # Add yaml import for character pool configs
+import tempfile
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s') # Set default level to INFO
@@ -93,6 +95,9 @@ Example Output (Your Response - generating variation):
 Now, analyze the provided context and generate a new topic, scenario, and style variation.
 """
 
+# Cache for storing persona image URLs to avoid repeated lookups
+_image_url_cache = {}
+
 # Helper function for web search
 def get_persona_context_from_web(persona_name: str, max_results: int = 3) -> str:
     """Performs a web search for a persona name and returns concatenated snippets."""
@@ -123,6 +128,11 @@ def get_persona_context_from_web(persona_name: str, max_results: int = 3) -> str
 # NEW Helper function for image search
 def get_persona_image_url(persona_name: str) -> str | None:
     """Performs an image search for a persona name and returns the URL of the first result."""
+    # Check image cache first (defined at module level)
+    if persona_name in _image_url_cache:
+        logging.info(f"  Using cached image URL for: {persona_name}")
+        return _image_url_cache[persona_name]
+        
     logging.info(f"  Performing image search for: {persona_name}")
     try:
         with DDGS() as ddgs:
@@ -142,9 +152,13 @@ def get_persona_image_url(persona_name: str) -> str | None:
         if results and results[0].get('image'):
             image_url = results[0]['image']
             logging.info(f"    Found image URL for {persona_name}: {image_url}")
+            # Store in cache
+            _image_url_cache[persona_name] = image_url
             return image_url
         else:
             logging.warning(f"    No image results found for {persona_name}.")
+            # Cache the None result to avoid retrying
+            _image_url_cache[persona_name] = None
             return None
             
     except Exception as e:
@@ -578,6 +592,15 @@ if __name__ == "__main__":
     # Note: include_points from manual_group is used here if needed
     fixed_persona_group.add_argument('--enable-variation', action='store_true', help='MUST be set to enable topic variation with fixed personas.')
 
+    # NEW: Random Pairings from Pools Mode
+    random_pool_group = parser.add_argument_group('Random Pairings Mode (Character Pools with Variation)')
+    random_pool_group.add_argument('--random-pairings', action='store_true', help='MUST be set to enable random pairing mode using character pools.')
+    random_pool_group.add_argument('--character-pool', type=str, help='Path to YAML file containing a list of character names under a "characters" key.')
+    random_pool_group.add_argument('--persona-desc-pool', type=str, help='Path to YAML file containing a dictionary of character names to descriptions under a "descriptions" key.')
+    # Note: Uses --initial-topic, --initial-scenario, --initial-style from fixed_persona_group
+    # Note: Uses --include-points from manual_group
+    # Note: Uses --enable-variation to control topic variation
+
     # NEW group for Brief Mode context searching
     brief_context_group = parser.add_argument_group('Creative Brief Web Context (Optional)')
     brief_context_group.add_argument('--persona1-search-term', type=str, default=None, help='Optional web search term to gather context for Persona 1 when using --creative-brief.')
@@ -602,6 +625,21 @@ if __name__ == "__main__":
         mode = 'delete'
     elif args.creative_brief:
         mode = 'brief'
+    elif args.enable_variation and args.random_pairings:
+        # Special case: Random pairings with topic variation
+        logging.info("Using random pairings with topic variation")
+        # Check if required args for random pairing with variation mode are set
+        required_random_variation_args = ['character_pool', 'persona_desc_pool', 'initial_topic', 'initial_scenario', 'initial_style']
+        missing_random_variation = [f'--{arg.replace("_", "-")}' for arg in required_random_variation_args if getattr(args, arg) is None]
+        if missing_random_variation:
+            parser.error(f"the following arguments are required for --random-pairings with --enable-variation mode: {' '.join(missing_random_variation)}")
+        # Conflict check: ensure no conflicting args are used
+        conflicting_args = ['persona1', 'persona1_desc', 'persona2', 'persona2_desc', 'topic', 'scenario', 'style', 
+                        'fixed_persona1', 'fixed_persona1_desc', 'fixed_persona2', 'fixed_persona2_desc']
+        provided_conflicts = [f'--{arg.replace("_", "-")}' for arg in conflicting_args if getattr(args, arg) is not None]
+        if provided_conflicts:
+            parser.error(f"cannot use arguments {provided_conflicts} with --random-pairings and --enable-variation mode.")
+        mode = 'random_pairings_variation'
     elif args.enable_variation:
         # Check if required args for fixed persona variation mode are set
         required_fixed_args = ['fixed_persona1', 'fixed_persona1_desc', 'fixed_persona2', 'fixed_persona2_desc', 'initial_topic', 'initial_scenario', 'initial_style']
@@ -614,6 +652,19 @@ if __name__ == "__main__":
         if provided_conflicts:
             parser.error(f"cannot use arguments {provided_conflicts} with --enable-variation mode. Use --fixed-persona* and --initial-* arguments instead.")
         mode = 'fixed_persona_variation'
+    elif args.random_pairings:
+        # Check if required args for random pairing mode are set
+        required_random_args = ['character_pool', 'persona_desc_pool', 'initial_topic', 'initial_scenario', 'initial_style']
+        missing_random = [f'--{arg.replace("_", "-")}' for arg in required_random_args if getattr(args, arg) is None]
+        if missing_random:
+            parser.error(f"the following arguments are required for --random-pairings mode: {' '.join(missing_random)}")
+        # Conflict check: ensure no conflicting args are used
+        conflicting_args = ['persona1', 'persona1_desc', 'persona2', 'persona2_desc', 'topic', 'scenario', 'style', 
+                            'fixed_persona1', 'fixed_persona1_desc', 'fixed_persona2', 'fixed_persona2_desc']
+        provided_conflicts = [f'--{arg.replace("_", "-")}' for arg in conflicting_args if getattr(args, arg) is not None]
+        if provided_conflicts:
+            parser.error(f"cannot use arguments {provided_conflicts} with --random-pairings mode.")
+        mode = 'random_pairings'
     elif args.persona1 and args.topic: # Heuristic: if core manual args are provided, assume manual mode
         # Check if required args for manual mode are set
         required_manual_args = ['persona1', 'persona1_desc', 'persona2', 'persona2_desc', 'topic', 'scenario', 'style']
@@ -683,6 +734,87 @@ if __name__ == "__main__":
     model_load_start_time = time.monotonic()
     model_loaded = False
     model = None # Initialize model variable
+
+    # For random pairings mode, load the character pools
+    character_pool = []
+    persona_desc_pool = {}
+    if mode == 'random_pairings':
+        try:
+            # Prepare paths with character-config directory if not explicitly provided
+            character_pool_path = args.character_pool
+            if not os.path.isabs(character_pool_path) and not character_pool_path.startswith('character-config/'):
+                character_pool_path = os.path.join('character-config', character_pool_path)
+                
+            persona_desc_pool_path = args.persona_desc_pool
+            if not os.path.isabs(persona_desc_pool_path) and not persona_desc_pool_path.startswith('character-config/'):
+                persona_desc_pool_path = os.path.join('character-config', persona_desc_pool_path)
+            
+            # Debug path information
+            logging.info(f"Character pool full path: {os.path.abspath(character_pool_path)}")
+            logging.info(f"Persona desc pool full path: {os.path.abspath(persona_desc_pool_path)}")
+            
+            logging.info(f"Checking if character pool file exists: {os.path.exists(character_pool_path)}")
+            logging.info(f"Checking if persona desc pool file exists: {os.path.exists(persona_desc_pool_path)}")
+            
+            logging.info(f"Loading character pool from {character_pool_path}")
+            with open(character_pool_path, 'r') as f:
+                file_content = f.read()
+                logging.info(f"Character pool file content length: {len(file_content)} bytes")
+                logging.info(f"Character pool file content (first 200 chars): {file_content[:200]}")
+                yaml_data = yaml.safe_load(file_content)
+                logging.info(f"YAML data type: {type(yaml_data)}")
+                if yaml_data is None:
+                    logging.error("YAML data is None - file may be empty or invalid")
+                    sys.exit(1)
+                if not isinstance(yaml_data, dict):
+                    logging.error(f"YAML data is not a dictionary: {type(yaml_data)}")
+                    sys.exit(1)
+                logging.info(f"YAML keys: {list(yaml_data.keys())}")
+                if 'characters' not in yaml_data:
+                    logging.error(f"'characters' key not found in YAML. Found keys: {list(yaml_data.keys())}")
+                    sys.exit(1)
+                character_pool = yaml_data['characters']
+                logging.info(f"Character pool type: {type(character_pool)}")
+                if isinstance(character_pool, list):
+                    logging.info(f"Character pool content: {character_pool}")
+                    logging.info(f"Character pool length: {len(character_pool)}")
+                else:
+                    logging.error(f"Character pool is not a list: {type(character_pool)}")
+                    sys.exit(1)
+                
+            if not isinstance(character_pool, list) or len(character_pool) < 2:
+                logging.error(f"Character pool must be a list with at least 2 characters. Found: {type(character_pool)} with {len(character_pool) if isinstance(character_pool, list) else 0} entries.")
+                sys.exit(1)
+            logging.info(f"Loaded {len(character_pool)} characters from pool.")
+            
+            logging.info(f"Loading persona descriptions from {persona_desc_pool_path}")
+            with open(persona_desc_pool_path, 'r') as f:
+                yaml_data = yaml.safe_load(f)
+                if not isinstance(yaml_data, dict) or 'descriptions' not in yaml_data:
+                    logging.error(f"Persona description pool YAML must contain a 'descriptions' key with a dictionary. Found: {type(yaml_data)}")
+                    sys.exit(1)
+                persona_desc_pool = yaml_data['descriptions']
+                
+            if not isinstance(persona_desc_pool, dict):
+                logging.error(f"Persona description pool must be a dictionary. Found: {type(persona_desc_pool)}")
+                sys.exit(1)
+            
+            # Validate that all characters have descriptions
+            missing_descriptions = [char for char in character_pool if char not in persona_desc_pool]
+            if missing_descriptions:
+                logging.error(f"The following characters are missing descriptions: {missing_descriptions}")
+                sys.exit(1)
+            
+            logging.info(f"Successfully loaded character pools with {len(character_pool)} characters and {len(persona_desc_pool)} descriptions.")
+        except FileNotFoundError as e:
+            logging.error(f"Pool file not found: {e}")
+            sys.exit(1)
+        except yaml.YAMLError as e:
+            logging.error(f"Invalid YAML in pool file: {e}")
+            sys.exit(1)
+        except Exception as e:
+            logging.error(f"Error loading character pools: {e}")
+            sys.exit(1)
 
     # --- Load Model --- (Load once for all generation modes)
     logging.info(f"Loading tokenizer: {args.model_id}")
@@ -851,23 +983,25 @@ if __name__ == "__main__":
         base_args_determined = True
 
     elif mode == 'fixed_persona_variation':
-        logging.info("Using fixed personas and initial context with variation enabled.")
+        logging.info("Using fixed personas with enabled topic/scenario variation.")
         variation_enabled = True
+        
+        # Assign base details from fixed personas
         base_persona1 = args.fixed_persona1
         base_persona1_desc = args.fixed_persona1_desc
-        base_persona2 = args.fixed_persona2
+        base_persona2 = args.fixed_persona2  
         base_persona2_desc = args.fixed_persona2_desc
         initial_topic = args.initial_topic
         initial_scenario = args.initial_scenario
         initial_style = args.initial_style
-        initial_include_points = args.include_points # Use include_points if provided
-
+        initial_include_points = args.include_points
+        
         # Set last successful to initial for the first variation run
         last_successful_topic = initial_topic
         last_successful_scenario = initial_scenario
         last_successful_style = initial_style
         last_successful_include_points = initial_include_points
-
+        
         # Try to get images for fixed personas
         logging.info("Attempting to find representative images for fixed personas...")
         img_search_start = time.monotonic()
@@ -877,8 +1011,63 @@ if __name__ == "__main__":
         logging.info(f"Image search completed (took {img_search_end - img_search_start:.2f}s).")
         logging.info(f"  Persona 1 Image URL: {base_persona1_image_url}")
         logging.info(f"  Persona 2 Image URL: {base_persona2_image_url}")
-
+        
         base_args_determined = True
+
+    elif mode == 'random_pairings_variation':
+        logging.info("Using random pairings from character pools with topic/scenario variation.")
+        variation_enabled = True # Explicitly enable variation for random pairing
+
+        # The initial_topic, initial_scenario, and initial_style will be our seed values
+        initial_topic = args.initial_topic
+        initial_scenario = args.initial_scenario
+        initial_style = args.initial_style
+        initial_include_points = args.include_points  # Use include_points if provided
+        
+        # Set last successful to initial for the first variation run
+        last_successful_topic = initial_topic
+        last_successful_scenario = initial_scenario
+        last_successful_style = initial_style
+        last_successful_include_points = initial_include_points
+        
+        # We need to set base_persona values to pass the base_args_determined check
+        # These will be overridden in each iteration of the generation loop
+        base_persona1 = "PLACEHOLDER_WILL_BE_SELECTED_RANDOMLY"
+        base_persona2 = "PLACEHOLDER_WILL_BE_SELECTED_RANDOMLY"
+        base_persona1_desc = "PLACEHOLDER_WILL_BE_SELECTED_RANDOMLY"
+        base_persona2_desc = "PLACEHOLDER_WILL_BE_SELECTED_RANDOMLY"
+        base_persona1_image_url = None
+        base_persona2_image_url = None
+        
+        base_args_determined = True  # We have the pools and initial context
+
+    elif mode == 'random_pairings':
+        logging.info("Using random pairings from character pools with initial context.")
+        variation_enabled = args.enable_variation  # Honor the variation flag
+
+        # The initial_topic, initial_scenario, and initial_style will be our seed values
+        initial_topic = args.initial_topic
+        initial_scenario = args.initial_scenario
+        initial_style = args.initial_style
+        initial_include_points = args.include_points  # Use include_points if provided
+        
+        # Set last successful to initial for the first variation run
+        last_successful_topic = initial_topic
+        last_successful_scenario = initial_scenario
+        last_successful_style = initial_style
+        last_successful_include_points = initial_include_points
+        
+        # For random pairings, we'll select the persona pairs in each iteration of the generation loop,
+        # but we need to set these to dummy values to pass the base_args_determined check
+        # They will be overridden in each iteration
+        base_persona1 = "PLACEHOLDER_WILL_BE_SELECTED_RANDOMLY"
+        base_persona2 = "PLACEHOLDER_WILL_BE_SELECTED_RANDOMLY"
+        base_persona1_desc = "PLACEHOLDER_WILL_BE_SELECTED_RANDOMLY"
+        base_persona2_desc = "PLACEHOLDER_WILL_BE_SELECTED_RANDOMLY"
+        base_persona1_image_url = None
+        base_persona2_image_url = None
+        
+        base_args_determined = True  # We have the pools and initial context
 
     elif mode == 'manual':
         logging.info("Using manually provided detailed arguments (no variation).")
@@ -923,12 +1112,77 @@ if __name__ == "__main__":
     # --- Generation Loop ---
     gen_loop_start_time = time.monotonic()
     try:
+        # Log current environment
+        logging.info(f"Global character_pool at beginning of generation loop: {character_pool}, length: {len(character_pool) if isinstance(character_pool, list) else 'N/A'}")
+        logging.info(f"Current mode: {mode}")
+        
+        # For random_pairings_variation, let's re-load the character pool to ensure it's available
+        if mode == 'random_pairings_variation':
+            logging.info("Re-loading character pools to ensure availability...")
+            try:
+                character_pool_path = args.character_pool
+                if not os.path.isabs(character_pool_path) and not character_pool_path.startswith('character-config/'):
+                    character_pool_path = os.path.join('character-config', character_pool_path)
+                    
+                persona_desc_pool_path = args.persona_desc_pool
+                if not os.path.isabs(persona_desc_pool_path) and not persona_desc_pool_path.startswith('character-config/'):
+                    persona_desc_pool_path = os.path.join('character-config', persona_desc_pool_path)
+                
+                # Debug path information
+                logging.info(f"Character pool full path: {os.path.abspath(character_pool_path)}")
+                logging.info(f"Checking if character pool file exists: {os.path.exists(character_pool_path)}")
+                
+                # Load character pool directly 
+                with open(character_pool_path, 'r') as f:
+                    yaml_data = yaml.safe_load(f)
+                    character_pool = yaml_data['characters']
+                    
+                # Load persona descriptions directly
+                with open(persona_desc_pool_path, 'r') as f:
+                    yaml_data = yaml.safe_load(f)
+                    persona_desc_pool = yaml_data['descriptions']
+                    
+                logging.info(f"Successfully re-loaded {len(character_pool)} characters and {len(persona_desc_pool)} descriptions.")
+            except Exception as e:
+                logging.error(f"Error during character pool reload: {e}")
+                raise
+        
         # Wrap the loop with tqdm
         for i in tqdm(range(args.num_examples), desc="Generating Examples", unit="example", file=sys.stdout): # Use sys.stdout for clean tqdm output
             example_start_time = time.monotonic()
             # logging.info(f"Processing example {i+1}/{args.num_examples}...") # Redundant with tqdm
 
-            # --- Topic/Scenario Variation Step (IF brief mode) ---
+            # For random pairings mode or random_pairings_variation mode, select two random characters for this example
+            if mode == 'random_pairings' or mode == 'random_pairings_variation':
+                # Select two random characters without replacement
+                import random
+                try:
+                    logging.info(f"Character pool before sampling: {character_pool}, length: {len(character_pool)}")
+                    logging.info(f"Attempting to sample 2 characters from a pool of {len(character_pool)}")
+                    selected_chars = random.sample(character_pool, 2)
+                    base_persona1, base_persona2 = selected_chars
+                    logging.info(f"Selected characters: {base_persona1}, {base_persona2}")
+                except ValueError as ve:
+                    logging.error(f"Error sampling characters: {ve}")
+                    logging.error(f"Character pool: {character_pool}")
+                    raise
+                    
+                base_persona1_desc = persona_desc_pool[base_persona1]
+                base_persona2_desc = persona_desc_pool[base_persona2]
+                
+                logging.info(f"  Selected random pair for example {i+1}: {base_persona1} & {base_persona2}")
+                
+                # Try to get images for the selected personas
+                logging.info("  Searching for images for the selected personas...")
+                img_search_start = time.monotonic()
+                base_persona1_image_url = get_persona_image_url(base_persona1)
+                base_persona2_image_url = get_persona_image_url(base_persona2)
+                img_search_end = time.monotonic()
+                logging.info(f"  Image search completed in {img_search_end - img_search_start:.2f}s.")
+                logging.info(f"    Persona 1 Image URL: {base_persona1_image_url}")
+                logging.info(f"    Persona 2 Image URL: {base_persona2_image_url}")
+
+            # --- Topic/Scenario Variation Step ---
             current_topic = initial_topic
             current_scenario = initial_scenario
             current_style = initial_style
@@ -937,6 +1191,12 @@ if __name__ == "__main__":
             # Only run variation generation if variation is enabled for the current mode
             if variation_enabled: 
                 variation_gen_start_time = time.monotonic()
+                # Use actual selected persona names for random_pairings_variation
+                if mode == 'random_pairings_variation':
+                    logging.info(f"  Attempting to generate topic/scenario variation...")
+                else:
+                    logging.info(f"  Attempting to generate topic/scenario variation for {base_persona1} and {base_persona2}...")
+                    
                 variation_args = generate_topic_variation(
                     # Pass None for brief if not in brief mode
                     original_brief=args.creative_brief if mode == 'brief' else None, 
@@ -964,7 +1224,7 @@ if __name__ == "__main__":
                 else:
                     logging.warning(f"  Failed to generate variation for example {i+1} (took {variation_gen_duration:.2f}s). Using initial topic/scenario/style.")
                     # Fallback to initial args already set in current_ vars
-            
+
             # --- Conversation Generation Step --- 
             logging.info(f"  Generating conversation for example {i+1}...")
             # Use BASE personas but CURRENT topic/scenario/style
@@ -1192,11 +1452,33 @@ if __name__ == "__main__":
                 # Add generation mode information to the card
                 generation_mode_desc = ""
                 if mode == 'brief':
-                    generation_mode_desc = f"**Mode:** Creative Brief (`--creative-brief \"{args.creative_brief}\"`)\n*   **Persona 1 Search Term:** `{args.persona1_search_term if args.persona1_search_term else 'N/A'}`\n*   **Persona 2 Search Term:** `{args.persona2_search_term if args.persona2_search_term else 'N/A'}`\n*   **Note:** Personas were generated once from the brief. Topic/Scenario/Style were varied for each example based on this brief. Parameters below reflect the *last* successful example."
+                    generation_mode_desc = f"**Mode:** Creative Brief (`--creative-brief`)\n*   **Note:** Characters, topic, scenario, and style were dynamically generated based on the input brief. Topic/scenario/style were varied for each example based on the generated personas. Parameters below reflect the *last* successful example."
+                    # Include the original brief in the generation mode description
+                    if args.creative_brief:
+                         generation_mode_desc += f"\n\n**Original Brief:** `{args.creative_brief}`"
+                    # Include web search terms if they were provided
+                    if args.persona1_search_term or args.persona2_search_term:
+                         generation_mode_desc += "\n\n**Web Context Sources:**"
+                         if args.persona1_search_term:
+                              generation_mode_desc += f"\n*   For {final_persona1}: Search for `{args.persona1_search_term}`"
+                         if args.persona2_search_term:
+                              generation_mode_desc += f"\n*   For {final_persona2}: Search for `{args.persona2_search_term}`"
                 elif mode == 'fixed_persona_variation':
                      generation_mode_desc = f"**Mode:** Fixed Persona with Variation (`--enable-variation`)\n*   **Note:** Personas were fixed. Topic/Scenario/Style were varied for each example based on the initial context provided. Parameters below reflect the *last* successful example."
+                elif mode == 'random_pairings':
+                     generation_mode_desc = f"**Mode:** Random Pairings (`--random-pairings`)\n*   **Note:** Personas were randomly selected from a pool of characters for each conversation. Parameters below reflect the *last* successful example with its specific character pairing."
+                     generation_mode_desc += f"\n\n**Character Pool Size:** {len(character_pool)} characters"
+                     generation_mode_desc += f"\n\n**Character Pool Source:** `{args.character_pool}`"
+                     generation_mode_desc += f"\n\n**Description Pool Source:** `{args.persona_desc_pool}`"
+                     generation_mode_desc += f"\n\n**Topic/Scenario Variation:** {'Enabled' if args.enable_variation else 'Disabled'}"
                 elif mode == 'manual':
                      generation_mode_desc = f"**Mode:** Manual (No Variation)\n*   **Note:** All parameters (personas, topic, scenario, style) were fixed for all generated examples."
+
+                # For Random Pairings Mode
+                if mode == 'random_pairings':
+                    generation_mode_desc += "\n\n**Random Pairings Mode:** Characters were randomly selected from a pool of characters, with each conversation using a unique pairing."
+                    generation_mode_desc += f"\n\n**Character Pool Size:** {len(character_pool)}"
+                    generation_mode_desc += f"\n\n**Topic/Scenario Variation:** {'Enabled' if args.enable_variation else 'Disabled'}"
 
                 markdown_body = f"""# {final_persona1} & {final_persona2}: {final_topic} - Generated by Conversation Dataset Generator
 
