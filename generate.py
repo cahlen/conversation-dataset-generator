@@ -1466,7 +1466,7 @@ if __name__ == "__main__":
                 elif mode == 'fixed_persona_variation':
                      generation_mode_desc = f"**Mode:** Fixed Persona with Variation (`--enable-variation`)\n*   **Note:** Personas were fixed. Topic/Scenario/Style were varied for each example based on the initial context provided. Parameters below reflect the *last* successful example."
                 elif mode == 'random_pairings':
-                     generation_mode_desc = f"**Mode:** Random Pairings (`--random-pairings`)\n*   **Note:** Personas were randomly selected from a pool of characters for each conversation. Parameters below reflect the *last* successful example with its specific character pairing."
+                     generation_mode_desc = f"**Mode:** Random Pairings (`--random-pairings`)\n*   **Note:** Personas were randomly selected from a pool of characters for each conversation."
                      generation_mode_desc += f"\n\n**Character Pool Size:** {len(character_pool)} characters"
                      generation_mode_desc += f"\n\n**Character Pool Source:** `{args.character_pool}`"
                      generation_mode_desc += f"\n\n**Description Pool Source:** `{args.persona_desc_pool}`"
@@ -1474,13 +1474,66 @@ if __name__ == "__main__":
                 elif mode == 'manual':
                      generation_mode_desc = f"**Mode:** Manual (No Variation)\n*   **Note:** All parameters (personas, topic, scenario, style) were fixed for all generated examples."
 
-                # For Random Pairings Mode
-                if mode == 'random_pairings':
-                    generation_mode_desc += "\n\n**Random Pairings Mode:** Characters were randomly selected from a pool of characters, with each conversation using a unique pairing."
-                    generation_mode_desc += f"\n\n**Character Pool Size:** {len(character_pool)}"
-                    generation_mode_desc += f"\n\n**Topic/Scenario Variation:** {'Enabled' if args.enable_variation else 'Disabled'}"
+                # Special handling for dataset card in Random Pairings Mode
+                if mode == 'random_pairings' or mode == 'random_pairings_variation':
+                    # Build a section for all characters used in the pool
+                    all_characters_section = "\n## Character Pool\n\n"
+                    all_characters_section += f"This dataset contains conversations between random pairs of characters selected from a pool of {len(character_pool)} characters:\n\n"
+                    
+                    # Collect image URLs for all characters in the pool
+                    character_images = {}
+                    for character in character_pool:
+                        # Use the existing image search function but don't log for each character
+                        old_level = logging.getLogger().level
+                        logging.getLogger().setLevel(logging.WARNING)  # Temporarily reduce logging
+                        img_url = get_persona_image_url(character)
+                        logging.getLogger().setLevel(old_level)  # Restore logging level
+                        character_images[character] = img_url
+                    
+                    # Add each character with image and description
+                    for character in character_pool:
+                        character_desc = persona_desc_pool.get(character, "No description available")
+                        character_img = character_images.get(character)
+                        img_md = f"![{character}]({character_img})" if character_img else "(No image found)"
+                        
+                        all_characters_section += f"**{character}**\n{img_md}\n*Description:* `{character_desc}`\n\n"
+                    
+                    # Initial topic/scenario information (don't use the last one)
+                    topic_info = f"\n## Topic & Scenario\n\n"
+                    if args.enable_variation:
+                        topic_info += f"**Initial Topic:** `{args.initial_topic}` (variations were generated for each conversation)\n\n"
+                        topic_info += f"**Initial Scenario:** `{args.initial_scenario}` (variations were generated for each conversation)\n\n"
+                        topic_info += f"**Initial Style:** `{args.initial_style}` (variations were generated for each conversation)\n\n"
+                    else:
+                        topic_info += f"**Topic:** `{args.initial_topic}`\n\n"
+                        topic_info += f"**Scenario:** `{args.initial_scenario}`\n\n"
+                        topic_info += f"**Style:** `{args.initial_style}`\n\n"
+                    
+                    if args.include_points:
+                        topic_info += f"**Included Points:** `{args.include_points}`\n\n"
+                    else:
+                        topic_info += "**Included Points:** None\n\n"
 
-                markdown_body = f"""# {final_persona1} & {final_persona2}: {final_topic} - Generated by Conversation Dataset Generator
+                markdown_body = ""
+                if mode == 'random_pairings' or mode == 'random_pairings_variation':
+                    # For random pairings, use a different title format
+                    markdown_body = f"""# Character Pool Dataset: {len(character_pool)} Characters - Generated by Conversation Dataset Generator
+
+This dataset was generated using the Conversation Dataset Generator script available at [https://cahlen.github.io/conversation-dataset-generator/](https://cahlen.github.io/conversation-dataset-generator/).
+
+## Generation Parameters
+
+*   **Number of Conversations Requested:** {args.num_examples}
+*   **Number of Conversations Successfully Generated:** {num_successfully_generated}
+*   **Total Turns:** {total_turns}
+*   **Model ID:** `{args.model_id}`
+*   **Generation Mode:** {generation_mode_desc}
+{topic_info}
+{all_characters_section}
+"""
+                else:
+                    # For non-random pairings modes, use the original format
+                    markdown_body = f"""# {final_persona1} & {final_persona2}: {final_topic} - Generated by Conversation Dataset Generator
 
 This dataset was generated using the Conversation Dataset Generator script available at [https://cahlen.github.io/conversation-dataset-generator/](https://cahlen.github.io/conversation-dataset-generator/).
 
@@ -1505,7 +1558,9 @@ This dataset was generated using the Conversation Dataset Generator script avail
 **{final_persona2}**
 {persona2_image_md}
 *Description:* `{final_persona2_desc}` -> maps to `role: gpt`
+"""
 
+                markdown_body += f"""
 ## Usage
 
 To use this dataset:
@@ -1586,7 +1641,7 @@ model.print_trainable_parameters()
 
 # 4. Training Arguments (minimal example)
 training_args = TrainingArguments(
-    output_dir="./lora-adapter-{final_persona1}-{final_persona2}", # Choose a directory
+    output_dir="./lora-adapter-output", # Choose a directory
     per_device_train_batch_size=1,
     gradient_accumulation_steps=4,
     learning_rate=2e-4,
