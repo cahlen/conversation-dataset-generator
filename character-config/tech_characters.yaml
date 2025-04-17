@@ -1,0 +1,105 @@
+# Tech Characters
+characters:
+  # Messaging/Streaming Systems
+  - "Apache Kafka Topic"
+  - "Apache Kafka Consumer"
+  - "Apache Kafka Producer"
+  - "Apache Kafka Connect"
+  - "Apache Kafka Streams"
+  - "Apache Kafka Schema Registry"
+  - "Apache Kafka REST Proxy"
+  - "Apache Kafka Connect File Source"
+  - "Apache Kafka Connect File Sink"
+  - "Apache Kafka Connect JDBC Source"
+  - "Apache Kafka Connect JDBC Sink"
+  - "RabbitMQ Queue"
+  - "Redis Pub/Sub Channel"
+  - "AWS Kinesis Stream"
+  - "NATS Streaming Server"
+  - "ZeroMQ Socket"
+  
+  # Databases
+  - "PostgreSQL Table"
+  - "PostgreSQL View"
+  - "PostgreSQL Function"
+  - "PostgreSQL Trigger"
+  - "PostgreSQL Index"
+  - "PostgreSQL Sequence"
+  - "PostgreSQL Schema"
+  - "MongoDB Collection"
+  - "Redis Cache"
+  - "Elasticsearch Index"
+  - "MySQL Database"
+  - "SQLite Database"
+  - "Neo4j Graph"
+  - "Cassandra Keyspace"
+  - "DynamoDB Table"
+  
+  # Python Ecosystem
+  - "Python Interpreter"
+  - "Jupyter Notebook"
+  - "Pandas DataFrame"
+  - "NumPy Array"
+  - "PyPI Package Index"
+  - "virtualenv"
+  - "pip Package Manager"
+  
+  # Web Frameworks
+  - "Django ORM"
+  - "Flask Application"
+  - "FastAPI Endpoint"
+  - "Celery Task Queue"
+  - "GraphQL Server"
+  - "RESTful API"
+  - "WebSocket Connection"
+  
+  # Cloud Services
+  - "AWS Lambda Function"
+  - "AWS S3 Bucket"
+  - "Google Cloud Function"
+  - "Azure Function App"
+  - "AWS SQS Queue"
+  - "AWS SNS Topic"
+  - "Serverless Function"
+  
+  # Containerization/Orchestration
+  - "Docker Container"
+  - "Kubernetes Pod"
+  - "Docker Compose Service"
+  - "Kubernetes Service"
+  - "Kubernetes ConfigMap"
+  
+  # Data Processing
+  - "Apache Spark Job"
+  - "Dask Cluster"
+  - "Apache Airflow DAG"
+  - "Prefect Flow"
+  - "Luigi Pipeline"
+  
+  # ML/AI
+  - "TensorFlow Model"
+  - "PyTorch Neural Network"
+  - "Scikit-learn Pipeline"
+  - "Hugging Face Transformer"
+  - "Langchain Agent"
+  
+  # DevOps/Infrastructure
+  - "GitHub Actions Workflow"
+  - "Jenkins Pipeline"
+  - "CircleCI Job"
+  - "Prometheus Metric"
+  - "Grafana Dashboard"
+  - "Terraform Resource"
+  
+  # API Gateways/Proxies
+  - "Nginx Proxy"
+  - "Kong API Gateway"
+  - "Traefik Router"
+  - "Envoy Proxy"
+  
+  # Authentication/Security
+  - "OAuth2 Server"
+  - "JWT Token"
+  - "LDAP Directory"
+  - "SSL Certificate"
+  
