@@ -90,7 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
     general.add_argument("--num-examples", type=int, default=3)
     general.add_argument("--output-file", type=str, default="generated_data.jsonl")
     general.add_argument("--model-id", type=str, default=DEFAULT_MODEL_ID)
-    general.add_argument("--max-new-tokens", type=int, default=2048)
+    general.add_argument("--max-new-tokens", type=int, default=4096)
     general.add_argument("--upload-to-hub", type=str, default=None, metavar="REPO_ID")
     general.add_argument("--load-in-4bit", action="store_true")
     general.add_argument("--force-upload", action="store_true")

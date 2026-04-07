@@ -86,8 +86,8 @@ def parse_conversation_to_sharegpt(
 def parse_variation_output(text: str) -> dict | None:
     """Parse LLM variation output into topic/scenario/style dict.
 
-    Fixes the critical regex bug: no re.DOTALL, strips lines, supports
-    both single and double quotes.
+    Handles both one-arg-per-line and all-args-on-one-line formats.
+    Supports both single and double quotes. No re.DOTALL.
 
     Returns:
         Dict with 'topic', 'scenario', and optionally 'style' keys,
@@ -97,9 +97,9 @@ def parse_variation_output(text: str) -> dict | None:
         return None
 
     result = {}
+    # Match --key "value" or --key 'value' anywhere in text (not just line-anchored)
     pattern = re.compile(
-        r"^--(topic|scenario|style)\s+[\"'](.+?)[\"']\s*$",
-        re.MULTILINE,
+        r"--(topic|scenario|style)\s+[\"'](.+?)[\"']",
     )
 
     for match in pattern.finditer(text):
@@ -156,9 +156,9 @@ def parse_arg_generation_output(text: str) -> dict | None:
         return None
 
     keys_pattern = "|".join(re.escape(k) for k in _ARG_KEYS)
+    # Match --key "value" anywhere in text (handles both one-per-line and inline formats)
     pattern = re.compile(
-        rf"^--({keys_pattern})\s+[\"'](.+?)[\"']\s*$",
-        re.MULTILINE,
+        rf"--({keys_pattern})\s+[\"'](.+?)[\"']",
     )
 
     result = {}

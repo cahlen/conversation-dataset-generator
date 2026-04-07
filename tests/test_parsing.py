@@ -173,6 +173,14 @@ class TestParseVariationOutput:
         result = parse_variation_output("This is just random text with no args")
         assert result is None
 
+    def test_all_args_on_one_line(self):
+        text = '--topic "New topic" --scenario "New scenario" --style "New style"'
+        result = parse_variation_output(text)
+        assert result is not None
+        assert result["topic"] == "New topic"
+        assert result["scenario"] == "New scenario"
+        assert result["style"] == "New style"
+
 
 from conversation_dataset_generator.parsing import parse_arg_generation_output
 
@@ -255,3 +263,16 @@ class TestParseArgGenerationOutput:
     def test_empty_returns_none(self):
         result = parse_arg_generation_output("")
         assert result is None
+
+    def test_all_args_on_one_line(self):
+        text = (
+            '--persona1 "Sherlock Holmes" --persona1-desc "Brilliant detective" '
+            '--persona2 "Dr Watson" --persona2-desc "Loyal doctor" '
+            '--topic "AI replacing detectives" --scenario "221B Baker Street" '
+            '--style "Formal debate"'
+        )
+        result = parse_arg_generation_output(text)
+        assert result is not None
+        assert result["persona1"] == "Sherlock Holmes"
+        assert result["persona2_desc"] == "Loyal doctor"
+        assert result["topic"] == "AI replacing detectives"

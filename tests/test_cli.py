@@ -11,7 +11,7 @@ class TestBuildParser:
     def test_default_max_tokens(self):
         parser = build_parser()
         args = parser.parse_args(["--creative-brief", "test brief"])
-        assert args.max_new_tokens == 2048
+        assert args.max_new_tokens == 4096
 
     def test_default_output_file(self):
         parser = build_parser()
