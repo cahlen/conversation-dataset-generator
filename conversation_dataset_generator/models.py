@@ -56,7 +56,7 @@ def load_model_and_pipeline(
         logger.info("Loading model with default precision: %s", model_id)
         model = AutoModelForCausalLM.from_pretrained(
             model_id,
-            torch_dtype=(
+            dtype=(
                 torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
             ),
             device_map="auto",
