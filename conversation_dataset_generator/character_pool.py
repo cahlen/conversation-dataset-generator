@@ -57,10 +57,17 @@ def validate_pools(characters: list[str], descriptions: dict[str, str]) -> None:
         raise ValueError(f"Characters missing descriptions: {missing}")
 
 
+def select_random_group(
+    characters: list[str], descriptions: dict[str, str], count: int = 2
+) -> list[tuple[str, str]]:
+    """Select N random characters and return list of (name, desc) tuples."""
+    selected = random.sample(characters, count)
+    return [(name, descriptions[name]) for name in selected]
+
+
 def select_random_pair(
     characters: list[str], descriptions: dict[str, str]
 ) -> tuple[str, str, str, str]:
-    """Select two random characters and return (name1, desc1, name2, desc2)."""
-    selected = random.sample(characters, 2)
-    p1, p2 = selected
-    return p1, descriptions[p1], p2, descriptions[p2]
+    """Select two random characters. Legacy compat — use select_random_group instead."""
+    group = select_random_group(characters, descriptions, count=2)
+    return group[0][0], group[0][1], group[1][0], group[1][1]

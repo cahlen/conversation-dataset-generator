@@ -5,6 +5,7 @@ from conversation_dataset_generator.character_pool import (
     load_description_pool,
     validate_pools,
     select_random_pair,
+    select_random_group,
 )
 
 
@@ -94,3 +95,41 @@ class TestSelectRandomPair:
         for _ in range(50):
             p1, _, p2, _ = select_random_pair(characters, descriptions)
             assert p1 != p2
+
+
+class TestSelectRandomGroup:
+    def test_default_count_is_two(self, pool_dir):
+        char_file, desc_file = pool_dir
+        characters = load_character_pool(char_file)
+        descriptions = load_description_pool(desc_file)
+        group = select_random_group(characters, descriptions)
+        assert len(group) == 2
+        names = [name for name, _ in group]
+        assert len(set(names)) == 2
+
+    def test_count_three(self, pool_dir):
+        char_file, desc_file = pool_dir
+        characters = load_character_pool(char_file)
+        descriptions = load_description_pool(desc_file)
+        group = select_random_group(characters, descriptions, count=3)
+        assert len(group) == 3
+        names = [name for name, _ in group]
+        assert len(set(names)) == 3
+
+    def test_returns_name_desc_tuples(self, pool_dir):
+        char_file, desc_file = pool_dir
+        characters = load_character_pool(char_file)
+        descriptions = load_description_pool(desc_file)
+        group = select_random_group(characters, descriptions, count=2)
+        for name, desc in group:
+            assert name in characters
+            assert desc == descriptions[name]
+
+    def test_never_duplicates(self, pool_dir):
+        char_file, desc_file = pool_dir
+        characters = load_character_pool(char_file)
+        descriptions = load_description_pool(desc_file)
+        for _ in range(50):
+            group = select_random_group(characters, descriptions, count=2)
+            names = [n for n, _ in group]
+            assert len(set(names)) == 2
