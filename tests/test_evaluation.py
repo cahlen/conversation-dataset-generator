@@ -1,10 +1,16 @@
 import pytest
 import json
+import numpy as np
+from unittest.mock import MagicMock
 from conversation_dataset_generator.evaluation import (
     load_jsonl,
     compute_dataset_summary,
     compute_distinct_n,
     compute_vocabulary_richness,
+    compute_topic_diversity,
+    compute_turn_coherence,
+    compute_self_repetition,
+    compute_speaker_distinctiveness,
 )
 
 
@@ -86,3 +92,94 @@ class TestComputeVocabularyRichness:
     def test_empty_returns_zero(self):
         ttr = compute_vocabulary_richness([])
         assert ttr == 0.0
+
+
+def make_mock_model():
+    model = MagicMock()
+    def encode_side_effect(texts, **kwargs):
+        results = []
+        for t in texts:
+            np.random.seed(hash(t) % 2**31)
+            results.append(np.random.randn(384).astype(np.float32))
+        return np.array(results)
+    model.encode.side_effect = encode_side_effect
+    return model
+
+
+class TestComputeTopicDiversity:
+    def test_identical_topics_low_diversity(self):
+        model = MagicMock()
+        model.encode.return_value = np.array([[1.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
+        convs = [{"topic": "Weather", "turns": []}, {"topic": "Weather", "turns": []}]
+        score = compute_topic_diversity(convs, model)
+        assert score < 0.01
+
+    def test_different_topics_higher_diversity(self):
+        model = MagicMock()
+        model.encode.return_value = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+        convs = [{"topic": "Weather", "turns": []}, {"topic": "Quantum", "turns": []}]
+        score = compute_topic_diversity(convs, model)
+        assert score > 0.5
+
+    def test_single_conversation_returns_zero(self):
+        model = MagicMock()
+        model.encode.return_value = np.array([[1.0, 0.0, 0.0]])
+        convs = [{"topic": "Weather", "turns": []}]
+        score = compute_topic_diversity(convs, model)
+        assert score == 0.0
+
+
+class TestComputeTurnCoherence:
+    def test_returns_float(self):
+        model = make_mock_model()
+        convs = [{"turns": [
+            {"content": "Hello there", "speaker_name": "A"},
+            {"content": "Hi how are you", "speaker_name": "B"},
+            {"content": "I am fine thanks", "speaker_name": "A"},
+        ]}]
+        score = compute_turn_coherence(convs, model)
+        assert isinstance(score, float)
+        assert 0.0 <= score <= 1.0
+
+    def test_single_turn_returns_zero(self):
+        model = make_mock_model()
+        convs = [{"turns": [{"content": "Hello", "speaker_name": "A"}]}]
+        score = compute_turn_coherence(convs, model)
+        assert score == 0.0
+
+
+class TestComputeSelfRepetition:
+    def test_no_repetition(self):
+        model = make_mock_model()
+        convs = [{"turns": [
+            {"content": "The weather is nice today", "speaker_name": "A"},
+            {"content": "I prefer rainy days personally", "speaker_name": "B"},
+            {"content": "Quantum physics is fascinating", "speaker_name": "A"},
+        ]}]
+        rate = compute_self_repetition(convs, model)
+        assert isinstance(rate, float)
+
+    def test_empty_returns_zero(self):
+        rate = compute_self_repetition([], MagicMock())
+        assert rate == 0.0
+
+
+class TestComputeSpeakerDistinctiveness:
+    def test_returns_float(self):
+        model = make_mock_model()
+        convs = [{"turns": [
+            {"content": "Verily I say unto thee", "speaker_name": "Thor"},
+            {"content": "JARVIS run diagnostics", "speaker_name": "Iron Man"},
+            {"content": "We need a plan soldier", "speaker_name": "Cap"},
+        ]}]
+        score = compute_speaker_distinctiveness(convs, model)
+        assert isinstance(score, float)
+
+    def test_single_speaker_returns_zero(self):
+        model = make_mock_model()
+        convs = [{"turns": [
+            {"content": "Hello", "speaker_name": "A"},
+            {"content": "World", "speaker_name": "A"},
+        ]}]
+        score = compute_speaker_distinctiveness(convs, model)
+        assert score == 0.0

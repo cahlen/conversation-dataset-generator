@@ -4,6 +4,8 @@ import json
 import logging
 from collections import Counter
 
+import numpy as np
+
 logger = logging.getLogger(__name__)
 
 
@@ -81,3 +83,89 @@ def compute_vocabulary_richness(conversations: list[dict]) -> float:
     if not all_tokens:
         return 0.0
     return len(set(all_tokens)) / len(all_tokens)
+
+
+def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
+    dot = np.dot(a, b)
+    norm = np.linalg.norm(a) * np.linalg.norm(b)
+    if norm == 0:
+        return 0.0
+    return float(dot / norm)
+
+
+def _mean_pairwise_cosine_distance(embeddings: np.ndarray) -> float:
+    n = len(embeddings)
+    if n < 2:
+        return 0.0
+    total = 0.0
+    count = 0
+    for i in range(n):
+        for j in range(i + 1, n):
+            total += 1.0 - _cosine_similarity(embeddings[i], embeddings[j])
+            count += 1
+    return total / count
+
+
+def compute_topic_diversity(conversations: list[dict], model) -> float:
+    topics = [c["topic"] for c in conversations if c.get("topic")]
+    if len(topics) < 2:
+        return 0.0
+    embeddings = model.encode(topics, show_progress_bar=False)
+    return _mean_pairwise_cosine_distance(embeddings)
+
+
+def compute_turn_coherence(conversations: list[dict], model) -> float:
+    similarities = []
+    for c in conversations:
+        turns = c["turns"]
+        if len(turns) < 2:
+            continue
+        texts = [t["content"] for t in turns]
+        embeddings = model.encode(texts, show_progress_bar=False)
+        for i in range(len(embeddings) - 1):
+            sim = max(0.0, _cosine_similarity(embeddings[i], embeddings[i + 1]))
+            similarities.append(sim)
+    if not similarities:
+        return 0.0
+    return float(np.mean(similarities))
+
+
+def compute_self_repetition(conversations: list[dict], model, threshold: float = 0.9) -> float:
+    if not conversations:
+        return 0.0
+    total_turns = 0
+    repeated_turns = 0
+    for c in conversations:
+        turns = c["turns"]
+        if len(turns) < 2:
+            total_turns += len(turns)
+            continue
+        texts = [t["content"] for t in turns]
+        embeddings = model.encode(texts, show_progress_bar=False)
+        for i in range(len(embeddings)):
+            total_turns += 1
+            for j in range(i):
+                if _cosine_similarity(embeddings[i], embeddings[j]) > threshold:
+                    repeated_turns += 1
+                    break
+    if total_turns == 0:
+        return 0.0
+    return repeated_turns / total_turns
+
+
+def compute_speaker_distinctiveness(conversations: list[dict], model) -> float:
+    speaker_texts = {}
+    for c in conversations:
+        for t in c["turns"]:
+            name = t["speaker_name"]
+            if name not in speaker_texts:
+                speaker_texts[name] = []
+            speaker_texts[name].append(t["content"])
+    if len(speaker_texts) < 2:
+        return 0.0
+    centroids = []
+    for name, texts in speaker_texts.items():
+        embeddings = model.encode(texts, show_progress_bar=False)
+        centroid = np.mean(embeddings, axis=0)
+        centroids.append(centroid)
+    return _mean_pairwise_cosine_distance(np.array(centroids))
