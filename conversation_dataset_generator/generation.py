@@ -135,16 +135,21 @@ def generate_args_from_brief(
     persona1_context: str | None = None
     persona2_context: str | None = None
 
+    if persona1_search_term or persona2_search_term:
+        import time as _time
+        from conversation_dataset_generator.web_search import get_persona_context
+
     if persona1_search_term:
         try:
-            from conversation_dataset_generator.web_search import get_persona_context
             persona1_context = get_persona_context(persona1_search_term)
         except Exception as exc:
             logger.warning("Web search for persona1 failed: %s", exc)
 
+    if persona1_search_term and persona2_search_term:
+        _time.sleep(1.5)  # avoid DuckDuckGo rate limiting
+
     if persona2_search_term:
         try:
-            from conversation_dataset_generator.web_search import get_persona_context
             persona2_context = get_persona_context(persona2_search_term)
         except Exception as exc:
             logger.warning("Web search for persona2 failed: %s", exc)
