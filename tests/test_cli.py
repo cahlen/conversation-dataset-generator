@@ -13,9 +13,39 @@ class TestBuildParser:
         args = parser.parse_args(["--creative-brief", "test brief"])
         assert args.max_new_tokens == 2048
 
+    def test_default_output_file(self):
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test brief"])
+        assert args.output_file == "generated_data.jsonl"
+
+    def test_default_num_examples(self):
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test brief"])
+        assert args.num_examples == 3
+
     def test_no_delete_repo_flag(self):
         parser = build_parser()
         assert not hasattr(parser.parse_args(["--creative-brief", "test"]), "delete_repo")
+
+    def test_has_load_in_4bit(self):
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test", "--load-in-4bit"])
+        assert args.load_in_4bit is True
+
+    def test_has_upload_to_hub(self):
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test", "--upload-to-hub", "user/repo"])
+        assert args.upload_to_hub == "user/repo"
+
+    def test_has_include_points(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "--topic", "T", "--persona1", "A", "--persona1-desc", "d",
+            "--persona2", "B", "--persona2-desc", "d",
+            "--scenario", "S", "--style", "St",
+            "--include-points", "rain, sun",
+        ])
+        assert args.include_points == "rain, sun"
 
 
 class TestDetectMode:

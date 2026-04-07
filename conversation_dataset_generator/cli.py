@@ -1,333 +1,360 @@
-"""CLI module: argument parsing, mode detection, and orchestration."""
+"""Command-line interface and orchestration for conversation generation."""
 
 import argparse
 import logging
 import os
+import sys
+import time
+
+from tqdm import tqdm
 
 from conversation_dataset_generator.models import DEFAULT_MODEL_ID
 
 logger = logging.getLogger(__name__)
 
 
-def parse_role_mapping(mapping_str):
-    """Parse a role mapping string like 'p1=human,p2=gpt' into a dict.
+def parse_role_mapping(mapping_str: str | None) -> dict:
+    """Parse role mapping string like 'p1=human,p2=gpt' into a dict."""
+    if mapping_str is None:
+        return {"p1": "human", "p2": "gpt"}
 
-    Returns:
-        dict mapping persona keys to role names.
-
-    Raises:
-        ValueError: If the mapping string is invalid.
-    """
-    if not mapping_str:
-        return {}
     result = {}
-    for pair in mapping_str.split(","):
-        pair = pair.strip()
-        if "=" not in pair:
-            raise ValueError(
-                f"Invalid role mapping entry '{pair}': expected 'key=value' format"
-            )
-        key, value = pair.split("=", 1)
-        key = key.strip()
-        value = value.strip()
-        if not key or not value:
-            raise ValueError(
-                f"Invalid role mapping entry '{pair}': key and value must be non-empty"
-            )
-        result[key] = value
+    for part in mapping_str.split(","):
+        key, _, value = part.strip().partition("=")
+        if key in ("p1", "p2") and value in ("human", "gpt"):
+            result[key] = value
+
+    if "p1" not in result or "p2" not in result:
+        raise ValueError(
+            f"Invalid role mapping: '{mapping_str}'. "
+            "Expected format: 'p1=human,p2=gpt' or 'p1=gpt,p2=human'"
+        )
     return result
 
 
-def build_parser():
-    """Create the argparse parser with all argument groups."""
+def build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser with all generation modes."""
     parser = argparse.ArgumentParser(
-        description="Generate conversation datasets for fine-tuning."
+        description="Generate synthetic conversational data for LLM fine-tuning.",
+        formatter_class=argparse.RawTextHelpFormatter,
     )
 
     # Mode selection
     mode_group = parser.add_argument_group("Mode Selection")
     mode_group.add_argument(
-        "--creative-brief",
-        type=str,
-        default=None,
-        help="A creative brief to generate conversation parameters from.",
+        "--creative-brief", type=str,
+        help="High-level brief for automatic argument generation + topic variation.",
     )
     mode_group.add_argument(
-        "--enable-variation",
-        action="store_true",
-        default=False,
+        "--enable-variation", action="store_true",
         help="Enable topic/scenario/style variation between conversations.",
     )
-
-    # Random pairings (standalone group)
-    random_group = parser.add_argument_group("Random Pairings")
-    random_group.add_argument(
-        "--random-pairings",
-        action="store_true",
-        default=False,
-        help="Use random character pairings from a pool.",
-    )
-    random_group.add_argument(
-        "--character-pool",
-        type=str,
-        default=None,
-        help="Path to character pool YAML file.",
-    )
-    random_group.add_argument(
-        "--persona-desc-pool",
-        type=str,
-        default=None,
-        help="Path to persona description pool YAML file.",
+    mode_group.add_argument(
+        "--random-pairings", action="store_true",
+        help="Enable random pairing mode using character pools.",
     )
 
-    # Manual mode arguments
-    manual_group = parser.add_argument_group("Manual Mode")
-    manual_group.add_argument("--topic", type=str, default=None)
-    manual_group.add_argument("--persona1", type=str, default=None)
-    manual_group.add_argument("--persona1-desc", type=str, default=None)
-    manual_group.add_argument("--persona2", type=str, default=None)
-    manual_group.add_argument("--persona2-desc", type=str, default=None)
-    manual_group.add_argument("--scenario", type=str, default=None)
-    manual_group.add_argument("--style", type=str, default=None)
+    # Manual mode args
+    manual = parser.add_argument_group("Manual Mode")
+    manual.add_argument("--topic", type=str)
+    manual.add_argument("--persona1", type=str)
+    manual.add_argument("--persona1-desc", type=str)
+    manual.add_argument("--persona2", type=str)
+    manual.add_argument("--persona2-desc", type=str)
+    manual.add_argument("--scenario", type=str)
+    manual.add_argument("--style", type=str)
+    manual.add_argument("--include-points", type=str, default=None)
 
-    # Fixed persona variation arguments
-    fixed_group = parser.add_argument_group("Fixed Persona Variation")
-    fixed_group.add_argument("--fixed-persona1", type=str, default=None)
-    fixed_group.add_argument("--fixed-persona1-desc", type=str, default=None)
-    fixed_group.add_argument("--fixed-persona2", type=str, default=None)
-    fixed_group.add_argument("--fixed-persona2-desc", type=str, default=None)
-    fixed_group.add_argument("--initial-topic", type=str, default=None)
-    fixed_group.add_argument("--initial-scenario", type=str, default=None)
-    fixed_group.add_argument("--initial-style", type=str, default=None)
+    # Fixed persona variation args
+    fixed = parser.add_argument_group("Fixed Persona Variation Mode")
+    fixed.add_argument("--fixed-persona1", type=str)
+    fixed.add_argument("--fixed-persona1-desc", type=str)
+    fixed.add_argument("--fixed-persona2", type=str)
+    fixed.add_argument("--fixed-persona2-desc", type=str)
+    fixed.add_argument("--initial-topic", type=str)
+    fixed.add_argument("--initial-scenario", type=str)
+    fixed.add_argument("--initial-style", type=str)
 
-    # Brief context
-    brief_group = parser.add_argument_group("Brief Context")
-    brief_group.add_argument("--brief-context", type=str, default=None)
+    # Random pairings args
+    pool = parser.add_argument_group("Random Pairings Mode")
+    pool.add_argument("--character-pool", type=str)
+    pool.add_argument("--persona-desc-pool", type=str)
 
-    # General arguments
-    general_group = parser.add_argument_group("General")
-    general_group.add_argument(
-        "--model-id",
-        type=str,
-        default=DEFAULT_MODEL_ID,
-        help=f"Model ID to use (default: {DEFAULT_MODEL_ID}).",
-    )
-    general_group.add_argument(
-        "--max-new-tokens",
-        type=int,
-        default=2048,
-        help="Maximum new tokens to generate (default: 2048).",
-    )
-    general_group.add_argument(
-        "--num-examples",
-        type=int,
-        default=10,
-        help="Number of conversation examples to generate.",
-    )
-    general_group.add_argument(
-        "--output",
-        type=str,
-        default="conversations.jsonl",
-        help="Output JSONL file path.",
-    )
-    general_group.add_argument(
-        "--hf-repo",
-        type=str,
-        default=None,
-        help="HuggingFace repo to upload to.",
-    )
-    general_group.add_argument(
-        "--role-mapping",
-        type=str,
-        default=None,
-        help="Role mapping string, e.g. 'p1=gpt,p2=human'.",
-    )
-    general_group.add_argument(
-        "--num-turns",
-        type=int,
-        default=5,
-        help="Number of conversation turns.",
-    )
+    # Brief context args
+    brief_ctx = parser.add_argument_group("Creative Brief Web Context")
+    brief_ctx.add_argument("--persona1-search-term", type=str, default=None)
+    brief_ctx.add_argument("--persona2-search-term", type=str, default=None)
+
+    # General args
+    general = parser.add_argument_group("General")
+    general.add_argument("--num-examples", type=int, default=3)
+    general.add_argument("--output-file", type=str, default="generated_data.jsonl")
+    general.add_argument("--model-id", type=str, default=DEFAULT_MODEL_ID)
+    general.add_argument("--max-new-tokens", type=int, default=2048)
+    general.add_argument("--upload-to-hub", type=str, default=None, metavar="REPO_ID")
+    general.add_argument("--load-in-4bit", action="store_true")
+    general.add_argument("--force-upload", action="store_true")
+    general.add_argument("--role-mapping", type=str, default=None,
+                         help="Role mapping: 'p1=human,p2=gpt' or 'p1=gpt,p2=human'")
 
     return parser
 
 
-def _require(args, keys, parser):
-    """Check that required arg keys are not None; call parser.error() if missing."""
-    missing = [k for k in keys if getattr(args, k.replace("-", "_"), None) is None]
-    if missing:
-        parser.error(f"Missing required arguments: {', '.join('--' + k for k in missing)}")
-
-
-def detect_mode(args, parser):
-    """Determine the mode from parsed args.
-
-    Priority: brief -> random_pairings+variation -> random_pairings ->
-              fixed_persona_variation -> manual
-    """
+def detect_mode(args, parser) -> str:
+    """Determine the generation mode from parsed arguments."""
     if args.creative_brief:
         return "brief"
 
-    if args.random_pairings and args.enable_variation:
-        _require(args, [
-            "character-pool", "persona-desc-pool",
-            "initial-topic", "initial-scenario", "initial-style",
-        ], parser)
+    if args.enable_variation and args.random_pairings:
+        _require(args, ["character_pool", "persona_desc_pool",
+                        "initial_topic", "initial_scenario", "initial_style"], parser)
         return "random_pairings_variation"
 
-    if args.random_pairings:
-        _require(args, [
-            "character-pool", "persona-desc-pool",
-            "initial-topic", "initial-scenario", "initial-style",
-        ], parser)
-        return "random_pairings"
-
     if args.enable_variation:
-        _require(args, [
-            "fixed-persona1", "fixed-persona1-desc",
-            "fixed-persona2", "fixed-persona2-desc",
-            "initial-topic", "initial-scenario", "initial-style",
-        ], parser)
+        _require(args, ["fixed_persona1", "fixed_persona1_desc",
+                        "fixed_persona2", "fixed_persona2_desc",
+                        "initial_topic", "initial_scenario", "initial_style"], parser)
         return "fixed_persona_variation"
 
-    # Manual mode
-    _require(args, [
-        "topic", "persona1", "persona1-desc",
-        "persona2", "persona2-desc", "scenario", "style",
-    ], parser)
-    return "manual"
+    if args.random_pairings:
+        _require(args, ["character_pool", "persona_desc_pool",
+                        "initial_topic", "initial_scenario", "initial_style"], parser)
+        return "random_pairings"
+
+    if args.persona1 and args.topic:
+        _require(args, ["persona1", "persona1_desc", "persona2", "persona2_desc",
+                        "topic", "scenario", "style"], parser)
+        return "manual"
+
+    parser.error(
+        "Insufficient arguments. Provide --creative-brief, OR manual args, "
+        "OR fixed persona args with --enable-variation, "
+        "OR --random-pairings with pool files."
+    )
+
+
+def _require(args, keys: list[str], parser) -> None:
+    """Check that all required keys are present in args."""
+    missing = [f"--{k.replace('_', '-')}" for k in keys if getattr(args, k) is None]
+    if missing:
+        parser.error(f"Missing required arguments: {' '.join(missing)}")
 
 
 def main():
-    """Main orchestration function."""
-    logging.basicConfig(level=logging.INFO)
+    """Main entry point for the conversation dataset generator."""
+    script_start = time.monotonic()
+
+    # Setup logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+    )
+    for lib in ("huggingface_hub", "datasets", "transformers"):
+        logging.getLogger(lib).setLevel(logging.WARNING)
 
     parser = build_parser()
     args = parser.parse_args()
+
     mode = detect_mode(args, parser)
+    logger.info("Mode: %s", mode)
 
-    # Parse role mapping
-    role_mapping = None
-    if args.role_mapping:
-        role_mapping = parse_role_mapping(args.role_mapping)
+    role_mapping = parse_role_mapping(args.role_mapping)
 
-    # Import heavy dependencies only when running main
+    # --- Load model ---
     from conversation_dataset_generator.models import load_model_and_pipeline
+
+    text_generator, tokenizer = load_model_and_pipeline(
+        model_id=args.model_id, load_in_4bit=args.load_in_4bit,
+    )
+
+    # --- Imports ---
     from conversation_dataset_generator.generation import (
         generate_args_from_brief_safe,
         generate_conversation,
         generate_topic_variation,
     )
     from conversation_dataset_generator.output import (
-        write_jsonl,
         build_dataset_card,
         create_hf_dataset,
+        write_jsonl,
     )
-    from conversation_dataset_generator.hub import upload_to_hub
 
-    from tqdm import tqdm
+    # --- Determine base arguments per mode ---
+    persona1 = None
+    persona1_desc = None
+    persona2 = None
+    persona2_desc = None
+    initial_topic = None
+    initial_scenario = None
+    initial_style = None
+    initial_include_points = None
+    variation_enabled = False
+    character_pool = None
+    character_descriptions = None
 
-    logger.info("Loading model and pipeline...")
-    pipe = load_model_and_pipeline(model_id=args.model_id, max_new_tokens=args.max_new_tokens)
-
-    # Determine base args per mode
     if mode == "brief":
-        base_args = generate_args_from_brief_safe(pipe, args.creative_brief)
+        variation_enabled = True
+        generated = generate_args_from_brief_safe(
+            args.creative_brief, text_generator, tokenizer,
+            args.persona1_search_term, args.persona2_search_term,
+        )
+        if generated is None:
+            logger.error("Failed to generate args from brief. Exiting.")
+            sys.exit(1)
+
+        persona1 = generated["persona1"]
+        persona1_desc = generated["persona1_desc"]
+        persona2 = generated["persona2"]
+        persona2_desc = generated["persona2_desc"]
+        initial_topic = generated["topic"]
+        initial_scenario = generated["scenario"]
+        initial_style = generated["style"]
+        initial_include_points = generated.get("include_points")
+
+    elif mode == "fixed_persona_variation":
+        variation_enabled = True
+        persona1 = args.fixed_persona1
+        persona1_desc = args.fixed_persona1_desc
+        persona2 = args.fixed_persona2
+        persona2_desc = args.fixed_persona2_desc
+        initial_topic = args.initial_topic
+        initial_scenario = args.initial_scenario
+        initial_style = args.initial_style
+        initial_include_points = args.include_points
+
+    elif mode in ("random_pairings", "random_pairings_variation"):
+        from conversation_dataset_generator.character_pool import (
+            load_character_pool,
+            load_description_pool,
+            select_random_pair,
+            validate_pools,
+        )
+
+        char_path = args.character_pool
+        desc_path = args.persona_desc_pool
+
+        if not os.path.isabs(char_path) and not char_path.startswith("character-config/"):
+            char_path = os.path.join("character-config", char_path)
+        if not os.path.isabs(desc_path) and not desc_path.startswith("character-config/"):
+            desc_path = os.path.join("character-config", desc_path)
+
+        character_pool = load_character_pool(char_path)
+        character_descriptions = load_description_pool(desc_path)
+        validate_pools(character_pool, character_descriptions)
+
+        variation_enabled = mode == "random_pairings_variation"
+        initial_topic = args.initial_topic
+        initial_scenario = args.initial_scenario
+        initial_style = args.initial_style
+        initial_include_points = args.include_points
+
     elif mode == "manual":
-        base_args = {
-            "topic": args.topic,
-            "persona1": args.persona1,
-            "persona1_desc": args.persona1_desc,
-            "persona2": args.persona2,
-            "persona2_desc": args.persona2_desc,
-            "scenario": args.scenario,
-            "style": args.style,
-        }
-    elif mode in ("fixed_persona_variation", "random_pairings", "random_pairings_variation"):
-        base_args = {
-            "topic": args.initial_topic,
-            "scenario": args.initial_scenario,
-            "style": args.initial_style,
-        }
-        if mode == "fixed_persona_variation":
-            base_args.update({
-                "persona1": args.fixed_persona1,
-                "persona1_desc": args.fixed_persona1_desc,
-                "persona2": args.fixed_persona2,
-                "persona2_desc": args.fixed_persona2_desc,
-            })
+        variation_enabled = False
+        persona1 = args.persona1
+        persona1_desc = args.persona1_desc
+        persona2 = args.persona2
+        persona2_desc = args.persona2_desc
+        initial_topic = args.topic
+        initial_scenario = args.scenario
+        initial_style = args.style
+        initial_include_points = args.include_points
+
+    # --- Generation loop ---
+    conversations = []
+    total_llm_time = 0.0
+
+    for i in tqdm(range(args.num_examples), desc="Generating", unit="example"):
+        # Select random pair if needed
         if mode in ("random_pairings", "random_pairings_variation"):
-            from conversation_dataset_generator.character_pool import (
-                load_character_pool,
-                load_description_pool,
-                validate_pools,
-                select_random_pair,
+            persona1, persona1_desc, persona2, persona2_desc = select_random_pair(
+                character_pool, character_descriptions,
             )
-            # Prepend character-config/ if path is not absolute and doesn't start with it
-            char_pool_path = args.character_pool
-            desc_pool_path = args.persona_desc_pool
-            if not os.path.isabs(char_pool_path) and not char_pool_path.startswith("character-config/"):
-                char_pool_path = os.path.join("character-config", char_pool_path)
-            if not os.path.isabs(desc_pool_path) and not desc_pool_path.startswith("character-config/"):
-                desc_pool_path = os.path.join("character-config", desc_pool_path)
+            logger.info("Pair %d: %s & %s", i + 1, persona1, persona2)
 
-            character_pool = load_character_pool(char_pool_path)
-            description_pool = load_description_pool(desc_pool_path)
-            validate_pools(character_pool, description_pool)
+        # Topic variation
+        current_topic = initial_topic
+        current_scenario = initial_scenario
+        current_style = initial_style
+        current_include_points = initial_include_points
 
-    # Generation loop
-    results = []
-    for i in tqdm(range(args.num_examples), desc="Generating conversations"):
-        conv_args = dict(base_args)
-
-        # Random pairings: select a random pair
-        if mode in ("random_pairings", "random_pairings_variation"):
-            pair = select_random_pair(character_pool, description_pool)
-            conv_args.update({
-                "persona1": pair["persona1"],
-                "persona1_desc": pair["persona1_desc"],
-                "persona2": pair["persona2"],
-                "persona2_desc": pair["persona2_desc"],
-            })
-
-        # Variation: generate new topic/scenario/style
-        if mode in ("fixed_persona_variation", "random_pairings_variation"):
+        if variation_enabled:
             variation = generate_topic_variation(
-                pipe,
-                conv_args.get("topic", ""),
-                conv_args.get("scenario", ""),
-                conv_args.get("style", ""),
+                persona1=persona1, persona1_desc=persona1_desc,
+                persona2=persona2, persona2_desc=persona2_desc,
+                initial_topic=initial_topic, initial_scenario=initial_scenario,
+                initial_style=initial_style,
+                generator_pipeline=text_generator, tokenizer=tokenizer,
+                original_brief=args.creative_brief if mode == "brief" else None,
             )
-            conv_args.update(variation)
+            if variation:
+                current_topic = variation.get("topic", initial_topic)
+                current_scenario = variation.get("scenario", initial_scenario)
+                current_style = variation.get("style", initial_style)
 
         # Generate conversation
-        conversation = generate_conversation(
-            pipe,
-            topic=conv_args["topic"],
-            persona1=conv_args["persona1"],
-            persona1_desc=conv_args["persona1_desc"],
-            persona2=conv_args["persona2"],
-            persona2_desc=conv_args["persona2_desc"],
-            scenario=conv_args["scenario"],
-            style=conv_args["style"],
-            num_turns=args.num_turns,
+        start = time.monotonic()
+        turns = generate_conversation(
+            topic=current_topic, persona1=persona1, persona2=persona2,
+            persona1_desc=persona1_desc, persona2_desc=persona2_desc,
+            scenario=current_scenario, style=current_style,
+            generator_pipeline=text_generator, tokenizer=tokenizer,
+            max_new_tokens=args.max_new_tokens,
+            include_points=current_include_points,
             role_mapping=role_mapping,
         )
-        results.append(conversation)
+        total_llm_time += time.monotonic() - start
 
-    # Write output
-    write_jsonl(results, args.output)
-    logger.info("Wrote %d conversations to %s", len(results), args.output)
+        if turns:
+            conversations.append({
+                "turns": turns,
+                "topic": current_topic,
+                "scenario": current_scenario,
+                "style": current_style,
+                "include_points": current_include_points or "",
+                "persona1_name": persona1,
+                "persona2_name": persona2,
+            })
 
-    # Optional HF upload
-    if args.hf_repo:
-        dataset_card = build_dataset_card(args.hf_repo, mode, len(results))
-        hf_dataset = create_hf_dataset(results)
-        upload_to_hub(hf_dataset, args.hf_repo, dataset_card)
-        logger.info("Uploaded dataset to %s", args.hf_repo)
+    # --- Write output ---
+    num_generated = len(conversations)
+    logger.info("Generated %d/%d conversations", num_generated, args.num_examples)
 
-    logger.info("Summary: generated %d conversations in '%s' mode", len(results), mode)
+    if not conversations:
+        logger.error("No conversations generated. Exiting.")
+        sys.exit(1)
 
+    total_turns = write_jsonl(conversations, args.output_file)
 
-if __name__ == "__main__":
-    main()
+    # --- Optional HF upload ---
+    if args.upload_to_hub:
+        ds = create_hf_dataset(args.output_file)
+        if ds is not None:
+            card = build_dataset_card(
+                mode=mode,
+                num_requested=args.num_examples,
+                num_generated=num_generated,
+                total_turns=total_turns,
+                model_id=args.model_id,
+                persona1=persona1, persona1_desc=persona1_desc,
+                persona2=persona2, persona2_desc=persona2_desc,
+                topic=current_topic if conversations else initial_topic,
+                scenario=current_scenario if conversations else initial_scenario,
+                style=current_style if conversations else initial_style,
+                include_points=current_include_points,
+                creative_brief=args.creative_brief if mode == "brief" else None,
+                search_term1=args.persona1_search_term,
+                search_term2=args.persona2_search_term,
+                character_pool=character_pool,
+                character_descriptions=character_descriptions,
+                variation_enabled=variation_enabled,
+                repo_id=args.upload_to_hub,
+            )
+
+            from conversation_dataset_generator.hub import upload_to_hub
+            upload_to_hub(ds, args.upload_to_hub, card, force=args.force_upload)
+
+    elapsed = time.monotonic() - script_start
+    logger.info(
+        "Done. %d conversations, %d turns, %.2fs total (%.2fs LLM time)",
+        num_generated, total_turns, elapsed, total_llm_time,
+    )
