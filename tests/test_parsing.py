@@ -5,13 +5,12 @@ from conversation_dataset_generator.parsing import parse_conversation_to_sharegp
 class TestParseConversationToSharegpt:
     def test_basic_two_turn(self):
         text = "Alice: Hello there!\nBob: Hi Alice, how are you?"
-        turns, p1, p2 = parse_conversation_to_sharegpt(text, "Alice", "Bob")
+        turns, names = parse_conversation_to_sharegpt(text, "Alice", "Bob")
         assert turns == [
             {"from": "human", "value": "Hello there!"},
             {"from": "gpt", "value": "Hi Alice, how are you?"},
         ]
-        assert p1 == "Alice"
-        assert p2 == "Bob"
+        assert names == ["Alice", "Bob"]
 
     def test_multi_turn(self):
         text = (
@@ -20,7 +19,7 @@ class TestParseConversationToSharegpt:
             "Alice: Third line\n"
             "Bob: Fourth line"
         )
-        turns, p1, p2 = parse_conversation_to_sharegpt(text, "Alice", "Bob")
+        turns, names = parse_conversation_to_sharegpt(text, "Alice", "Bob")
         assert len(turns) == 4
         assert turns[0]["from"] == "human"
         assert turns[1]["from"] == "gpt"
@@ -33,51 +32,108 @@ class TestParseConversationToSharegpt:
             "and this continues the same turn\n"
             "Bob: Got it"
         )
-        turns, _, _ = parse_conversation_to_sharegpt(text, "Alice", "Bob")
+        turns, _ = parse_conversation_to_sharegpt(text, "Alice", "Bob")
         assert len(turns) == 2
         assert "line one\nand this continues" in turns[0]["value"]
 
     def test_case_insensitive_matching(self):
         text = "alice: Hello\nBOB: Hi"
-        turns, _, _ = parse_conversation_to_sharegpt(text, "Alice", "Bob")
+        turns, _ = parse_conversation_to_sharegpt(text, "Alice", "Bob")
         assert len(turns) == 2
 
     def test_empty_text_returns_none(self):
-        turns, p1, p2 = parse_conversation_to_sharegpt("", "Alice", "Bob")
+        turns, names = parse_conversation_to_sharegpt("", "Alice", "Bob")
         assert turns is None
-        assert p1 is None
-        assert p2 is None
+        assert names is None
 
     def test_no_matching_speakers_returns_none(self):
         text = "Charlie: Hello\nDave: Hi"
-        turns, _, _ = parse_conversation_to_sharegpt(text, "Alice", "Bob")
+        turns, _ = parse_conversation_to_sharegpt(text, "Alice", "Bob")
         assert turns is None
 
     def test_blank_lines_ignored(self):
         text = "Alice: Hello\n\n\nBob: Hi"
-        turns, _, _ = parse_conversation_to_sharegpt(text, "Alice", "Bob")
+        turns, _ = parse_conversation_to_sharegpt(text, "Alice", "Bob")
         assert len(turns) == 2
 
     def test_trailing_whitespace_on_lines(self):
         text = "Alice: Hello   \nBob: Hi   "
-        turns, _, _ = parse_conversation_to_sharegpt(text, "Alice", "Bob")
+        turns, _ = parse_conversation_to_sharegpt(text, "Alice", "Bob")
         assert len(turns) == 2
         assert turns[0]["value"] == "Hello"
         assert turns[1]["value"] == "Hi"
 
     def test_custom_role_mapping(self):
         text = "Alice: Hello\nBob: Hi"
-        turns, _, _ = parse_conversation_to_sharegpt(
+        turns, _ = parse_conversation_to_sharegpt(
             text, "Alice", "Bob", role_mapping={"p1": "gpt", "p2": "human"}
+        )
+        assert turns[0]["from"] == "gpt"
+        assert turns[1]["from"] == "human"
+
+    def test_custom_role_mapping_by_name(self):
+        text = "Alice: Hello\nBob: Hi"
+        turns, _ = parse_conversation_to_sharegpt(
+            text, "Alice", "Bob", role_mapping={"Alice": "gpt", "Bob": "human"}
         )
         assert turns[0]["from"] == "gpt"
         assert turns[1]["from"] == "human"
 
     def test_skips_empty_turns(self):
         text = "Alice: \nBob: Hi there"
-        turns, _, _ = parse_conversation_to_sharegpt(text, "Alice", "Bob")
+        turns, _ = parse_conversation_to_sharegpt(text, "Alice", "Bob")
         assert len(turns) == 1
         assert turns[0]["from"] == "gpt"
+
+
+class TestParseConversationMultiSpeaker:
+    def test_three_speakers(self):
+        text = "Alice: Hello\nBob: Hi\nCharlie: Hey everyone"
+        turns, names = parse_conversation_to_sharegpt(
+            text, personas=["Alice", "Bob", "Charlie"],
+            role_mapping={"Alice": "human", "Bob": "gpt", "Charlie": "gpt"},
+        )
+        assert len(turns) == 3
+        assert turns[0] == {"from": "human", "value": "Hello"}
+        assert turns[1] == {"from": "gpt", "value": "Hi"}
+        assert turns[2] == {"from": "gpt", "value": "Hey everyone"}
+        assert names == ["Alice", "Bob", "Charlie"]
+
+    def test_four_speakers(self):
+        text = "A: one\nB: two\nC: three\nD: four"
+        turns, names = parse_conversation_to_sharegpt(
+            text, personas=["A", "B", "C", "D"],
+            role_mapping={"A": "human", "B": "gpt", "C": "gpt", "D": "gpt"},
+        )
+        assert len(turns) == 4
+
+    def test_default_role_mapping_multi(self):
+        text = "Alice: Hello\nBob: Hi\nCharlie: Hey"
+        turns, _ = parse_conversation_to_sharegpt(
+            text, personas=["Alice", "Bob", "Charlie"],
+        )
+        assert turns[0]["from"] == "human"
+        assert turns[1]["from"] == "gpt"
+        assert turns[2]["from"] == "gpt"
+
+    def test_legacy_two_args_still_work(self):
+        text = "Alice: Hello\nBob: Hi"
+        turns, names = parse_conversation_to_sharegpt(text, "Alice", "Bob")
+        assert len(turns) == 2
+        assert turns[0]["from"] == "human"
+        assert turns[1]["from"] == "gpt"
+        assert names == ["Alice", "Bob"]
+
+    def test_train_speaker_mapping(self):
+        text = "Alice: Hi\nBob: Hello\nCharlie: Hey"
+        mapping = {"Alice": "human", "Bob": "gpt", "Charlie": "human"}
+        turns, _ = parse_conversation_to_sharegpt(
+            text, personas=["Alice", "Bob", "Charlie"],
+            role_mapping=mapping,
+        )
+        assert turns[0]["from"] == "human"
+        assert turns[1]["from"] == "gpt"
+        assert turns[2]["from"] == "human"
 
 
 from conversation_dataset_generator.parsing import parse_variation_output

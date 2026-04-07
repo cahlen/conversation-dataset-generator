@@ -8,30 +8,58 @@ logger = logging.getLogger(__name__)
 
 def parse_conversation_to_sharegpt(
     conversation_text: str,
-    persona1: str,
-    persona2: str,
+    persona1: str | None = None,
+    persona2: str | None = None,
     role_mapping: dict | None = None,
-) -> tuple[list[dict] | None, str | None, str | None]:
+    *,
+    personas: list[str] | None = None,
+) -> tuple[list[dict] | None, list[str] | None]:
     """Parse raw conversation text into ShareGPT turn structure.
 
     Args:
         conversation_text: Raw text output from the LLM.
-        persona1: Name of the first speaker.
-        persona2: Name of the second speaker.
-        role_mapping: Optional dict with keys "p1" and "p2" mapping to roles.
-            Defaults to {"p1": "human", "p2": "gpt"}.
+        persona1: Name of the first speaker (legacy 2-speaker interface).
+        persona2: Name of the second speaker (legacy 2-speaker interface).
+        role_mapping: Optional dict mapping speakers to roles.
+            Accepts legacy format {"p1": "human", "p2": "gpt"} or
+            name-based format {"Alice": "human", "Bob": "gpt"}.
+            Defaults to first speaker -> "human", all others -> "gpt".
+        personas: List of N speaker names (keyword-only).
 
     Returns:
-        Tuple of (turns_list, persona1_name, persona2_name) or (None, None, None).
+        Tuple of (turns_list, persona_names_list) or (None, None).
     """
     if not conversation_text or not conversation_text.strip():
-        return None, None, None
+        return None, None
 
+    # Resolve personas list from either new or legacy args
+    if personas is None:
+        if persona1 and persona2:
+            personas = [persona1, persona2]
+        else:
+            return None, None
+
+    # Resolve role_mapping
     if role_mapping is None:
-        role_mapping = {"p1": "human", "p2": "gpt"}
+        # Default: first speaker -> "human", rest -> "gpt"
+        resolved_mapping = {personas[0].lower(): "human"}
+        for name in personas[1:]:
+            resolved_mapping[name.lower()] = "gpt"
+    elif "p1" in role_mapping or "p2" in role_mapping:
+        # Legacy format: convert p1/p2 keys to name-based
+        resolved_mapping = {}
+        for i, name in enumerate(personas):
+            legacy_key = f"p{i + 1}"
+            if legacy_key in role_mapping:
+                resolved_mapping[name.lower()] = role_mapping[legacy_key]
+    else:
+        # Name-based format: normalize keys to lowercase
+        resolved_mapping = {k.lower(): v for k, v in role_mapping.items()}
 
+    # Build regex pattern matching any persona name
+    escaped_names = "|".join(re.escape(name) for name in personas)
     turn_pattern = re.compile(
-        rf"^\s*({re.escape(persona1)}|{re.escape(persona2)})\s*:\s*(.*)",
+        rf"^\s*({escaped_names})\s*:\s*(.*)",
         re.IGNORECASE | re.MULTILINE,
     )
 
@@ -54,11 +82,8 @@ def parse_conversation_to_sharegpt(
             speaker = match.group(1).strip()
             value_start = match.group(2).strip()
 
-            if speaker.lower() == persona1.lower():
-                role = role_mapping["p1"]
-            elif speaker.lower() == persona2.lower():
-                role = role_mapping["p2"]
-            else:
+            role = resolved_mapping.get(speaker.lower())
+            if role is None:
                 current_turn = None
                 accumulated_text = ""
                 continue
@@ -78,9 +103,9 @@ def parse_conversation_to_sharegpt(
 
     if not conversations:
         logger.warning("Could not parse any valid turns from conversation text.")
-        return None, None, None
+        return None, None
 
-    return conversations, persona1, persona2
+    return conversations, personas
 
 
 def parse_variation_output(text: str) -> dict | None:
