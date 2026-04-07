@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A Python tool that generates conversational dialogue datasets in ShareGPT format for LLM fine-tuning. Uses Hugging Face `transformers` pipelines to generate synthetic conversations between two personas, with optional upload to Hugging Face Hub.
+A Python tool that generates synthetic conversational dialogue datasets in ShareGPT format for LLM fine-tuning. Supports 2+ speakers, topic variation, conversation continuation, and optional HuggingFace Hub upload.
 
 ## Setup
 
@@ -15,31 +15,39 @@ pip install -r requirements.txt
 pip install -r requirements-dev.txt  # for pytest
 ```
 
-Requires a GPU with CUDA for model inference. Supports 4-bit quantization via `--load-in-4bit`.
+Requires Python 3.10+, NVIDIA GPU with CUDA. Supports 4-bit quantization via `--load-in-4bit`. Docker also available (see README).
 
 ## Running
 
-**Single generation:**
 ```bash
-python generate.py --creative-brief "brief description" --num-examples 5 --output-file output.jsonl
-python generate.py --topic "topic" --persona1 "Name" --persona1-desc "desc" --persona2 "Name" --persona2-desc "desc" --scenario "scenario" --style "style" --output-file output.jsonl
-```
+# Creative brief (auto-generates personas + variation)
+python generate.py --creative-brief "Sherlock and Watson debate AI" --num-examples 5 --output-file out.jsonl
 
-**Batch generation** (runs multiple generate.py invocations from a YAML config):
-```bash
+# Manual 2-speaker
+python generate.py --persona1 "Alice" --persona1-desc "desc" --persona2 "Bob" --persona2-desc "desc" --topic "T" --scenario "S" --style "St" --output-file out.jsonl
+
+# Multi-speaker (3+ personas)
+python generate.py --persona "Iron Man" "Genius billionaire" --persona "Cap" "Earnest leader" --persona "Thor" "Boisterous god" --topic "T" --scenario "S" --style "St" --output-file out.jsonl
+
+# From personas YAML file
+python generate.py --personas examples/avengers_personas.yaml --topic "T" --scenario "S" --style "St" --output-file out.jsonl
+
+# Continue existing conversation
+python generate.py --continue-from data.jsonl --output-file more.jsonl
+
+# Batch generation
 python batch_generate.py examples/batch_mixed_modes.yaml
 ```
 
 ## Testing
 
 ```bash
-pytest tests/ -v                                          # all tests
+pytest tests/ -v                                          # all 121 tests
 pytest tests/test_parsing.py -v                           # one module
 pytest tests/test_parsing.py::TestParseVariationOutput -v # one class
-pytest tests/test_parsing.py::TestParseVariationOutput::test_trailing_whitespace_on_lines -v  # one test
 ```
 
-79 tests across 6 test files. No GPU required for tests — LLM calls are mocked.
+121 tests across 6 test files. No GPU required — LLM calls are mocked.
 
 ## Architecture
 
@@ -49,44 +57,34 @@ pytest tests/test_parsing.py::TestParseVariationOutput::test_trailing_whitespace
 |---|---|
 | `cli.py` | Argparse, mode detection, orchestration loop |
 | `models.py` | Model/tokenizer loading, pipeline creation, quantization config |
-| `prompts.py` | System prompt constants + message builder functions |
-| `generation.py` | LLM call wrappers with retry logic (brief→args, variation, conversation) |
-| `parsing.py` | Regex parsers: raw LLM text → ShareGPT turns, variation output, arg output |
-| `output.py` | JSONL serialization, dataset card templates, HF Dataset creation |
+| `prompts.py` | System prompt constants + message builders (conversation, variation, continuation) |
+| `generation.py` | LLM call wrappers with retry logic (brief→args, variation, conversation, continuation) |
+| `parsing.py` | Regex parsers: raw LLM text → ShareGPT turns (N-speaker), variation output, arg output |
+| `output.py` | JSONL serialization, dataset card templates, load conversation from JSONL |
 | `hub.py` | HuggingFace Hub upload (isolated, optional) |
-| `character_pool.py` | YAML pool loading, validation, random pair selection |
+| `character_pool.py` | YAML pool loading, validation, random group selection |
 | `web_search.py` | DuckDuckGo persona context search for creative brief mode |
 
 `generate.py` is a thin entry point that calls `cli.main()`.
 
-### Five generation modes
+### Generation Modes
 
-1. **Creative Brief** (`--creative-brief`): LLM brainstorms personas/topic/scenario, generates variations per example
-2. **Manual** (`--topic`, `--persona1`, etc.): All parameters specified, no variation
-3. **Fixed Persona + Variation** (`--enable-variation` + `--fixed-persona*` + `--initial-*`): Fixed personas, LLM-varied topics
-4. **Random Pairings** (`--random-pairings`): Random character pairs from YAML pools
-5. **Random Pairings + Variation** (`--random-pairings --enable-variation`): Random pairs with topic variation
+1. **Creative Brief** (`--creative-brief`): LLM brainstorms personas/topic/scenario, varies per example
+2. **Manual** (`--topic` + `--persona1`/`--persona2` or `--persona`/`--personas`): User specifies all params
+3. **Fixed Persona + Variation** (`--enable-variation` + `--fixed-persona*` + `--initial-*`): Fixed personas, varied topics
+4. **Random Pairings** (`--random-pairings`): Random character groups from YAML pools, optional `--group-size N`
+5. **Continue** (`--continue-from`): Extend existing conversation from JSONL file
 
-### Key defaults
+### Key Details
 
 - Default model: `Qwen/Qwen2.5-7B-Instruct`
-- Default max tokens: 2048
-- Role mapping: persona1→"human", persona2→"gpt" (configurable via `--role-mapping`)
-
-### character-config/
-
-YAML files with character pools. Each domain (avengers, got, southpark, tech) has:
-- `*_characters.yaml` — list of names under `characters` key
-- `*_descriptions.yaml` — name-to-description mapping under `descriptions` key
+- Default max tokens: 4096
+- N-speaker support: `--persona` (repeatable) or `--personas` YAML file
+- Role mapping: `--train-speaker "Name"` (that speaker = gpt, rest = human) or `--role-mapping "Name1=human,Name2=gpt"`
+- Personas are `list[tuple[str, str]]` (name, description) throughout the pipeline
+- Parser handles both one-arg-per-line and inline LLM output formats
+- Variation regex uses non-anchored pattern (no `re.DOTALL`) to match `--key "value"` anywhere in text
 
 ### Output Format
 
-JSONL with fields: conversation_id, turn_number, role, speaker_name, topic, scenario, style, include_points, content. Output files are gitignored (`*.jsonl`).
-
-## Key Design Decisions
-
-- Single model used for all LLM tasks (brief expansion, variation, conversation) via `--model-id`
-- Web search (DuckDuckGo) enriches persona descriptions in creative brief mode
-- Conversation parser uses regex to extract speaker turns from free-form LLM output
-- `batch_generate.py` uses subprocess execution (not function imports) to isolate each run
-- Variation regex uses `re.MULTILINE` only (no `re.DOTALL`) to correctly parse per-line key-value output
+JSONL with fields: conversation_id, turn_number, role, speaker_name, topic, scenario, style, include_points, content. Each turn carries its own speaker_name. Output files are gitignored (`*.jsonl`).
