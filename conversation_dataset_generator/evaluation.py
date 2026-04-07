@@ -169,3 +169,86 @@ def compute_speaker_distinctiveness(conversations: list[dict], model) -> float:
         centroid = np.mean(embeddings, axis=0)
         centroids.append(centroid)
     return _mean_pairwise_cosine_distance(np.array(centroids))
+
+
+def run_evaluation(
+    path: str,
+    model_name: str | None = "sentence-transformers/all-MiniLM-L6-v2",
+    model=None,
+) -> dict:
+    conversations = load_jsonl(path)
+    summary = compute_dataset_summary(conversations)
+
+    results = {
+        "path": path,
+        **summary,
+        "distinct_1": compute_distinct_n(conversations, 1),
+        "distinct_2": compute_distinct_n(conversations, 2),
+        "distinct_3": compute_distinct_n(conversations, 3),
+        "vocabulary_richness": compute_vocabulary_richness(conversations),
+    }
+
+    if model is None and model_name is not None:
+        try:
+            from sentence_transformers import SentenceTransformer
+            logger.info("Loading embedding model: %s", model_name)
+            model = SentenceTransformer(model_name)
+        except ImportError:
+            logger.warning("sentence-transformers not installed. Skipping embedding metrics.")
+        except Exception as e:
+            logger.warning("Failed to load embedding model: %s", e)
+
+    if model is not None:
+        results["topic_diversity"] = compute_topic_diversity(conversations, model)
+        results["turn_coherence"] = compute_turn_coherence(conversations, model)
+        results["self_repetition_rate"] = compute_self_repetition(conversations, model)
+        results["speaker_distinctiveness"] = compute_speaker_distinctiveness(conversations, model)
+
+    return results
+
+
+def format_report(results: dict) -> str:
+    lines = []
+    lines.append("=== CDG Evaluation Report ===")
+    lines.append("")
+    lines.append(f"Dataset: {results.get('path', 'unknown')}")
+    lines.append(
+        f"Conversations: {results['num_conversations']} | "
+        f"Turns: {results['total_turns']} | "
+        f"Avg turns: {results['avg_turns']:.1f}"
+    )
+    lines.append("")
+
+    dist = results.get("speaker_distribution", {})
+    lines.append(f"Speakers ({results['num_speakers']}):")
+    for name, frac in sorted(dist.items(), key=lambda x: -x[1]):
+        lines.append(f"  {name:25s} {frac:.1%} of turns")
+    lines.append("")
+
+    lines.append("Diversity:")
+    lines.append(
+        f"  Distinct-1: {results['distinct_1']:.2f} | "
+        f"Distinct-2: {results['distinct_2']:.2f} | "
+        f"Distinct-3: {results['distinct_3']:.2f}"
+    )
+    if "topic_diversity" in results:
+        lines.append(f"  Topic diversity: {results['topic_diversity']:.2f} (0=identical, 1=unrelated)")
+    lines.append(f"  Vocabulary richness (TTR): {results['vocabulary_richness']:.2f}")
+    lines.append("")
+
+    if "turn_coherence" in results:
+        lines.append("Coherence:")
+        lines.append(f"  Turn-to-turn similarity: {results['turn_coherence']:.2f} (target: 0.3-0.6)")
+        lines.append(f"  Self-repetition rate: {results['self_repetition_rate']:.1%}")
+        lines.append("")
+
+    if "speaker_distinctiveness" in results:
+        lines.append("Speaker Distinctiveness:")
+        lines.append(f"  Avg pairwise distance: {results['speaker_distinctiveness']:.2f} (higher = more distinct voices)")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def format_json(results: dict) -> str:
+    return json.dumps(results, indent=2)

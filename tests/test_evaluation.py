@@ -11,6 +11,9 @@ from conversation_dataset_generator.evaluation import (
     compute_turn_coherence,
     compute_self_repetition,
     compute_speaker_distinctiveness,
+    run_evaluation,
+    format_report,
+    format_json,
 )
 
 
@@ -183,3 +186,67 @@ class TestComputeSpeakerDistinctiveness:
         ]}]
         score = compute_speaker_distinctiveness(convs, model)
         assert score == 0.0
+
+
+class TestRunEvaluation:
+    def test_returns_all_pure_metrics(self, sample_jsonl):
+        results = run_evaluation(sample_jsonl, model_name=None)
+        assert "num_conversations" in results
+        assert "total_turns" in results
+        assert "distinct_1" in results
+        assert "distinct_2" in results
+        assert "distinct_3" in results
+        assert "vocabulary_richness" in results
+
+    def test_with_mock_model(self, sample_jsonl):
+        results = run_evaluation(sample_jsonl, model_name=None, model=make_mock_model())
+        assert "topic_diversity" in results
+        assert "turn_coherence" in results
+        assert "self_repetition_rate" in results
+        assert "speaker_distinctiveness" in results
+
+    def test_no_embedding_metrics_when_no_model(self, sample_jsonl):
+        results = run_evaluation(sample_jsonl, model_name=None)
+        assert "topic_diversity" not in results
+
+
+class TestFormatReport:
+    def test_contains_section_headers(self):
+        results = {
+            "path": "test.jsonl",
+            "num_conversations": 10, "total_turns": 100, "avg_turns": 10.0,
+            "num_speakers": 2, "speaker_distribution": {"Alice": 0.5, "Bob": 0.5},
+            "distinct_1": 0.42, "distinct_2": 0.81, "distinct_3": 0.91,
+            "vocabulary_richness": 0.68,
+            "topic_diversity": 0.72,
+            "turn_coherence": 0.47,
+            "self_repetition_rate": 0.02,
+            "speaker_distinctiveness": 0.38,
+        }
+        report = format_report(results)
+        assert "CDG Evaluation Report" in report
+        assert "Diversity" in report
+        assert "Coherence" in report
+        assert "Speaker" in report
+        assert "0.42" in report
+
+    def test_works_without_embedding_metrics(self):
+        results = {
+            "path": "test.jsonl",
+            "num_conversations": 5, "total_turns": 20, "avg_turns": 4.0,
+            "num_speakers": 2, "speaker_distribution": {"A": 0.5, "B": 0.5},
+            "distinct_1": 0.5, "distinct_2": 0.8, "distinct_3": 0.9,
+            "vocabulary_richness": 0.7,
+        }
+        report = format_report(results)
+        assert "CDG Evaluation Report" in report
+        assert "Coherence" not in report  # No embedding metrics
+
+
+class TestFormatJson:
+    def test_valid_json(self):
+        import json as json_mod
+        results = {"path": "test.jsonl", "num_conversations": 5, "distinct_1": 0.42}
+        output = format_json(results)
+        parsed = json_mod.loads(output)
+        assert parsed["num_conversations"] == 5
