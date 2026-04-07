@@ -7,3 +7,4 @@ pyyaml
 duckduckgo-search
 tqdm>=4.62.0
 bitsandbytes
+sentence-transformers
