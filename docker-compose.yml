@@ -1,0 +1,10 @@
+services:
+  cdg:
+    build: .
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    volumes:
+      - ./output:/app/output

@@ -1,0 +1,12 @@
+.git
+__pycache__
+*.pyc
+*.jsonl
+*.log
+docs/
+tests/
+.venv
+venv
+.cache
+.env
+generate_old.py
