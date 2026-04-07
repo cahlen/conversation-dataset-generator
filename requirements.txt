@@ -3,9 +3,7 @@ transformers
 accelerate
 datasets
 huggingface_hub
-pandas
+pyyaml
 duckduckgo-search
-peft
-trl
-bitsandbytes
 tqdm>=4.62.0
+bitsandbytes
