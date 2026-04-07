@@ -1,952 +1,223 @@
-<a name="readme-top"></a>
+# Conversation Dataset Generator
 
-<!-- PROJECT SHIELDS -->
-[![MIT License][license-shield]][license-url]
-<!-- Add other shields here if desired -->
+Generate synthetic conversational datasets in ShareGPT format for LLM fine-tuning. Define personas, topics, and styles — or provide a creative brief and let the LLM figure it out.
 
-<!-- PROJECT LOGO -->
-<br />
-<div align="center">
-  <a href="https://github.com/cahlen/conversation-dataset-generator">
-    <img src="https://www.svgrepo.com/show/28673/speech-bubble.svg" alt="Conversation Icon" width="80" height="80">
-  </a>
+[![MIT License](https://img.shields.io/github/license/cahlen/conversation-dataset-generator.svg)](LICENSE)
 
-  <h1 align="center">Conversation Dataset Generator ✨</h1>
-
-  <p align="center">
-    Craft High-Quality Dialogue Data for Your LLMs.
-    <br />
-    <a href="https://cahlen.github.io/conversation-dataset-generator/"><strong>View Project Page »</strong></a>
-    <br />
-    <br />
-    <a href="https://github.com/cahlen/conversation-dataset-generator/issues">Report Bug</a>
-    ·
-    <a href="https://github.com/cahlen/conversation-dataset-generator/issues">Request Feature</a>
-  </p>
-</div>
-
-<!-- TABLE OF CONTENTS -->
-<details>
-  <summary>Table of Contents</summary>
-  <ol>
-    <li>
-      <a href="#about-the-project">About The Project</a>
-      <ul>
-        <li><a href="#built-with">Built With</a></li>
-      </ul>
-    </li>
-    <li>
-      <a href="#getting-started">Getting Started</a>
-      <ul>
-        <li><a href="#prerequisites">Prerequisites</a></li>
-        <li><a href="#installation">Installation</a></li>
-      </ul>
-    </li>
-    <li><a href="#usage">Usage</a></li>
-     <ul>
-        <li><a href="#modes-of-operation">Modes of Operation</a></li>
-        <li><a href="#argument-reference">Argument Reference</a></li>
-        <li><a href="#examples">Examples</a></li>
-        <li><a href="#output-format">Output Format</a></li>
-        <li><a href="#model--fine-tuning-notes">Model & Fine-Tuning Notes</a></li>
-      </ul>
-    <li><a href="#roadmap">Roadmap</a></li>
-    <li><a href="#contributing">Contributing</a></li>
-    <li><a href="#license">License</a></li>
-    <li><a href="#contact">Contact</a></li>
-    <li><a href="#acknowledgments">Acknowledgments</a></li>
-  </ol>
-</details>
-
-<!-- ABOUT THE PROJECT -->
-## About The Project
-
-Ever wish you could generate *just* the right kind of conversational data? Whether you're fine-tuning a Large Language Model (LLM) for a specific **style** or **persona**, need dialogue for a creative project, or want to explore complex **topics** in a natural flow, the Conversation Dataset Generator is here to help!
-
-This powerful and flexible Python script leverages Hugging Face's `transformers` library to put you in control. You can operate in two main modes:
-
-1.  **Manual Mode:** Specify everything – the exact `topic`, `personas` (with descriptions!), `scenario`, `style`, and even specific `keywords` to include.
-2.  **Creative Brief Mode:** Provide a high-level `creative-brief` (like *"Sherlock Holmes explains TikTok trends to a confused Dr. Watson"*) and let the script use an LLM to brainstorm the detailed parameters *for you*. This mode automatically generates **topic/scenario variations** for each example while keeping the core personas consistent, enhancing dataset diversity. Furthermore, you can optionally provide specific **web search terms** (`--persona1-search-term`, `--persona2-search-term`) to fetch real-time context about the personas, allowing the LLM to generate more accurate descriptions and dialogue even for individuals or characters not well-represented in its training data.
-
-Either way, the output is a clean **JSON Lines (`.jsonl`)** file, perfect for downstream tasks. Each line represents a single turn with a rich set of keys readily compatible with popular LLM training frameworks and NLP pipelines.
-
-**Why Use This Generator?**
-
-Unlock the potential of your LLMs or accelerate your creative process! This script empowers you to generate targeted datasets for various goals:
-
-*   **Style Specialization:** Train models to master specific conversational nuances (e.g., pirate speak, formal anchor).
-*   **Persona Embodiment:** Build believable characters, even niche ones using web search context.
-*   **Topic/Scenario Fluency:** Enhance a model's ability to discuss particular subjects naturally.
-*   **Instruction Adherence:** Train models to better follow constraints like including specific keywords.
-*   **Creative Content Generation:** Break writer's block and draft dialogue for scripts, stories, etc.
-*   **Dialogue Flow Analysis:** Study conversation progression using the structured output.
-
-Best of all, the code is fully open source under the MIT license, giving you the freedom to use, modify, and extend it however you see fit!
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-### Built With
-
-This project relies on several key libraries:
-
-*   [![Python][Python.org]][Python-url]
-*   [![PyTorch][PyTorch.org]][PyTorch-url]
-*   [![Transformers][Transformers.co]][Transformers-url]
-*   [![Accelerate][Accelerate.co]][Accelerate-url]
-*   [![Datasets][Datasets.co]][Datasets-url]
-*   [![Huggingface Hub][Huggingface.co]][Huggingface-url]
-*   [![Pandas][Pandas.pydata]][Pandas-url]
-*   [![DuckDuckGo Search][DuckDuckGo-Search-pypi]][DuckDuckGo-Search-url] (Optional, for Brief Mode web search)
-*   [![BitsAndBytes][BitsAndBytes-pypi]][BitsAndBytes-url] (Optional, for LoRA examples)
-*   [![TQDM][TQDM-pypi]][TQDM-url] (For progress bars)
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- GETTING STARTED -->
-## Getting Started
-
-To get a local copy up and running follow these simple steps.
-
-### Prerequisites
-
-*   **Python:** Version 3.8+ is required.
-*   **GPU:** A powerful GPU with sufficient VRAM and CUDA support is *highly recommended*, especially for Creative Brief mode which involves multiple LLM calls per example. Manual mode is less demanding but still benefits from GPU acceleration.
-*   **CPU/Memory:** A capable CPU and adequate RAM are needed.
-*   **Internet Connection:** Required if using the `--personaX-search-term` arguments in Creative Brief mode for DuckDuckGo searches or for image searches.
-*   **Dependencies:** Install necessary Python packages as described below.
-
-### Installation
-
-1.  **Clone the repository (Optional):**
-    ```bash
-    git clone https://github.com/cahlen/conversation-dataset-generator.git
-    cd conversation-dataset-generator
-    ```
-2.  **Create & Activate Virtual Environment (Recommended):**
-    ```bash
-    python3 -m venv venv
-    source venv/bin/activate # On Windows use `venv\\Scripts\\activate`
-    ```
-3.  **Install Base Dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-    *Note: If `torch` is included in `requirements.txt`, pip might install a CPU or older CUDA version. For optimal GPU usage, consider installing PyTorch separately first, matching your CUDA version - see step 4. The `requirements.txt` file also includes `tqdm` for progress bars.*
-4.  **Install Specific PyTorch Version (Optional but Recommended for GPU):**
-    Install PyTorch *after* other dependencies, matching your CUDA setup. Find the correct command for your system on the [official PyTorch website](https://pytorch.org/get-started/locally/).
-    ```bash
-    # Example for CUDA 12.8
-    pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
-    ```
-    *Ensure your NVIDIA driver version supports your chosen CUDA version!*
-5.  **Install Optional Dependencies:**
-    *   For Brief Mode web search (`--personaX-search-term`):
-        ```bash
-        pip install duckduckgo-search
-        ```
-    *   For LoRA training examples/notes:
-        ```bash
-        pip install -U peft trl bitsandbytes
-        ```
-    *   For progress bars (likely already installed via `requirements.txt`):
-        ```bash
-        pip install tqdm
-        ```
-6.  **Login to Hugging Face Hub (Optional, for uploading):**
-    To use the `--upload-to-hub` feature, you need to log in:
-    ```bash
-    huggingface-cli login
-    # Follow prompts to enter your HF API token (read or write permissions needed)
-    ```
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- USAGE EXAMPLES -->
-## Usage
-
-This project provides two main scripts for generating conversational data:
-
-1.  `generate.py`: Generates a single dataset based on command-line arguments or a creative brief. Shows progress using `tqdm`.
-2.  `batch_generate.py`: Runs multiple `generate.py` processes based on a YAML configuration file, allowing for large-scale generation across different scenarios and modes.
-
-### Single Generation (`generate.py`)
-
-The `generate.py` script can be run in several ways:
-
-**1. Manual Mode (Detailed Arguments)**
-
-Provide all conversation parameters explicitly on the command line.
+## Quick Start (pip)
 
 ```bash
-# Activate your virtual environment first!
-source venv/bin/activate 
-
-python generate.py --persona1 "Wizard" --persona1-desc "Grumpy, old, prone to muttering spells" \
-                   --persona2 "Knight" --persona2-desc "Overly cheerful, oblivious to Wizard's mood" \
-                   --topic "The best way to polish armor without magic" \
-                   --scenario "Stuck in a dungeon waiting room with bad Muzak" \
-                   --style "Comedic, bickering, contrasting personalities" \
-                   --num-examples 10 \
-                   --output-file manual_wizard_knight.jsonl \
-                   --model-id meta-llama/Meta-Llama-3-8B-Instruct 
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+python generate.py \
+  --creative-brief "Sherlock Holmes and Watson debate whether AI will replace detectives" \
+  --num-examples 5 --output-file conversations.jsonl
 ```
 
-**2. Creative Brief Mode (Automatic Argument & Topic Variation)**
+Requires Python 3.10+ and an NVIDIA GPU with CUDA.
 
-Provide a high-level brief. The script generates detailed parameters (personas, topic, etc.) using the LLM, optionally incorporating **web search context** (via `--personaX-search-term`) and **image search** for the personas. It then creates topic/scenario variations for each example while keeping the personas constant.
+## Quick Start (Docker)
 
 ```bash
-# Without web search
-python generate.py --creative-brief "A pirate captain trying to order coffee at a modern minimalist cafe" \
-                   --num-examples 15 \
-                   --output-file brief_pirate.jsonl
+# Build (default CUDA 12.x — works on 30xx/40xx/50xx)
+docker build -t cdg .
 
-# With web search for specific personas
-python generate.py --creative-brief "Conversation between Tech Lead Tina and Junior Dev Joe about effective code reviews" \
-                   --num-examples 10 \
-                   --persona1-search-term "Typical Tech Lead responsibilities personality traits communication" \
-                   --persona2-search-term "Junior Developer challenges learning curve receiving feedback" \
-                   --output-file brief_tech_review.jsonl
+# Or build for CUDA 13.x (RTX 50xx with latest drivers)
+docker build --build-arg CUDA_VERSION=13.0.0 -t cdg .
+
+# Run
+docker run --gpus all -v $(pwd)/output:/app/output cdg \
+  --creative-brief "Two scientists argue about time travel" \
+  --output-file output/data.jsonl
 ```
 
-**3. Fixed Persona + Variation Mode**
+Or with docker compose:
 
-Define fixed personas and an initial context, then enable variation to generate diverse conversations with those same characters.
+```bash
+docker compose run cdg \
+  --creative-brief "Two scientists argue about time travel" \
+  --output-file output/data.jsonl
+```
+
+## Modes
+
+### Manual
+
+Specify everything directly. No variation — every conversation uses the same parameters.
+
+```bash
+python generate.py \
+  --topic "best pizza toppings" \
+  --persona1 "Tony" --persona1-desc "A passionate Italian chef" \
+  --persona2 "Dave" --persona2-desc "A pineapple-on-pizza enthusiast" \
+  --scenario "kitchen argument" --style "heated but friendly debate" \
+  --num-examples 10 --output-file pizza_debate.jsonl
+```
+
+### Creative Brief
+
+Provide a high-level brief. The LLM generates personas, topic, scenario, and style, then varies the topic/scenario for each conversation.
+
+```bash
+python generate.py \
+  --creative-brief "A grumpy cat and an overly enthusiastic golden retriever share a sunbeam" \
+  --num-examples 20 --output-file cat_dog.jsonl
+```
+
+Optionally enrich personas with web search context:
+
+```bash
+python generate.py \
+  --creative-brief "Linus Torvalds and Tim Cook debate open source" \
+  --persona1-search-term "Linus Torvalds" \
+  --persona2-search-term "Tim Cook Apple CEO" \
+  --num-examples 10 --output-file tech_debate.jsonl
+```
+
+### Fixed Persona + Variation
+
+Fix the personas but let the LLM vary the topic and scenario each time.
 
 ```bash
 python generate.py \
   --enable-variation \
-  --fixed-persona1 "Mick Jagger" \
-  --fixed-persona1-desc "Iconic frontman..." \
-  --fixed-persona2 "Ozzy Osbourne" \
-  --fixed-persona2-desc "The Prince of Darkness..." \
-  --initial-topic "Modern rock music and reality TV" \
-  --initial-scenario "Backstage at an awards show" \
-  --initial-style "Amusing clash..." \
-  --num-examples 20 \
-  --output-file fixed_jagger_ozzy.jsonl \
-  --load-in-4bit \
-  # Note: --include-points can also be used here if desired
+  --fixed-persona1 "Iron Man" --fixed-persona1-desc "Genius billionaire with rapid-fire wit" \
+  --fixed-persona2 "Captain America" --fixed-persona2-desc "Principled, earnest, old-fashioned" \
+  --initial-topic "team leadership" --initial-scenario "Avengers HQ" --initial-style "friendly disagreement" \
+  --num-examples 50 --output-file avengers.jsonl
 ```
 
-**4. Random Pairings Mode (with Character Pools)**
+### Random Pairings
 
-Generate conversations using random pairs of characters selected from predefined character pools (YAML files). Each conversation will feature a different pairing from your character pools.
+Randomly pair characters from YAML pool files for each conversation.
 
 ```bash
 python generate.py \
   --random-pairings \
-  --character-pool character-config/got_characters.yaml \
-  --persona-desc-pool character-config/got_descriptions.yaml \
-  --initial-topic "Discussing the Iron Throne succession" \
-  --initial-scenario "In the Great Hall of Winterfell" \
-  --initial-style "Tense strategic conversation with occasional wit" \
-  --num-examples 10 \
-  --output-file got_random_pairings.jsonl \
-  --model-id meta-llama/Meta-Llama-3-8B-Instruct
+  --character-pool avengers_characters.yaml \
+  --persona-desc-pool avengers_descriptions.yaml \
+  --initial-topic "planning a party" --initial-scenario "break room" --initial-style "casual banter" \
+  --num-examples 100 --output-file avengers_random.jsonl
 ```
 
-**5. Random Pairings with Variation**
+Add `--enable-variation` to also vary topics per conversation.
 
-Combine random character pairings with topic/scenario variation for maximum diversity. This generates conversations with different characters AND different topics/scenarios for each example.
+### Batch Generation
+
+Run multiple generation jobs from a YAML config:
 
 ```bash
-python generate.py \
-  --random-pairings \
-  --enable-variation \
-  --character-pool character-config/avengers_chars.yaml \
-  --persona-desc-pool character-config/avengers_desc.yaml \
-  --initial-topic "Planning a team-building exercise for the Avengers" \
-  --initial-scenario "In the Avengers Tower common room" \
-  --initial-style "Humorous and character-driven conversation with friendly banter" \
-  --num-examples 20 \
-  --output-file avengers_random_varied.jsonl \
-  --model-id meta-llama/Meta-Llama-3-8B-Instruct
+python batch_generate.py examples/batch_mixed_modes.yaml
 ```
 
-(See Argument Reference below for all available options for `generate.py`)
+See `examples/` for sample batch configs.
 
-### Batch Generation (`batch_generate.py`)
+## Argument Reference
 
-For generating multiple datasets with different configurations efficiently, use the `batch_generate.py` script along with a YAML configuration file.
+### Mode Selection
 
-**1. Create a YAML Configuration File**
+| Flag | Description |
+|---|---|
+| `--creative-brief TEXT` | Creative brief for automatic parameter generation |
+| `--enable-variation` | Vary topic/scenario between conversations |
+| `--random-pairings` | Random character pairs from pool files |
 
-Define the runs you want to perform. Each run corresponds to one execution of `generate.py`. You can mix modes (manual, brief, fixed persona) within a single YAML file. See the `examples/` directory for detailed configuration examples like `examples/batch_mixed_modes.yaml` and `examples/batch_rockstars_celebs.yaml`.
+### Manual Mode
 
-**Key YAML Structure:**
+| Flag | Description |
+|---|---|
+| `--topic TEXT` | Conversation topic |
+| `--persona1 TEXT` | First speaker name |
+| `--persona1-desc TEXT` | First speaker description |
+| `--persona2 TEXT` | Second speaker name |
+| `--persona2-desc TEXT` | Second speaker description |
+| `--scenario TEXT` | Setting/context |
+| `--style TEXT` | Dialogue style/tone |
+| `--include-points TEXT` | Comma-separated keywords to include |
 
-```yaml
-# Top-level settings (optional)
-output_directory: "./batch_output" # Base directory for all output files
-# upload_repo: "YourUser/GlobalRepo" # Optional: Default repo if not set per-run
-force_upload: false # Optional: Global force upload flag
+### Fixed Persona Variation
 
-# List of runs to execute
-runs:
-  # Run 1: Creative Brief Example
-  - id: "unique_run_id_1"             # Optional: Identifier for logging
-    output_file: "run1_output.jsonl" # REQUIRED: Specific output for this run
-    num_examples: 50
-    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
-    creative_brief: "Scenario description..."
-    upload_repo: "YourUser/Run1Dataset" # Optional: Per-run upload destination
-    load_in_4bit: true
+| Flag | Description |
+|---|---|
+| `--fixed-persona1 TEXT` | Fixed first speaker name |
+| `--fixed-persona1-desc TEXT` | Fixed first speaker description |
+| `--fixed-persona2 TEXT` | Fixed second speaker name |
+| `--fixed-persona2-desc TEXT` | Fixed second speaker description |
+| `--initial-topic TEXT` | Seed topic for variation |
+| `--initial-scenario TEXT` | Seed scenario for variation |
+| `--initial-style TEXT` | Seed style for variation |
 
-  # Run 2: Fixed Persona + Variation Example
-  - id: "unique_run_id_2"
-    output_file: "run2_output.jsonl"
-    num_examples: 75
-    enable_variation: true             # REQUIRED for this mode
-    fixed_personas:
-      persona1: "Persona Name"
-      persona1_desc: "Description..."
-      persona2: "Another Persona"
-      persona2_desc: "Description..."
-    initial_context:
-      topic: "Seed topic"
-      scenario: "Seed scenario"
-      style: "Seed style"
-      # include_points: "optional,keywords"
-    load_in_4bit: true
+### Random Pairings
 
-  # Run 3: Manual Mode Example
-  - id: "unique_run_id_3"
-    output_file: "run3_output.jsonl"
-    num_examples: 25
-    manual_args:                  # REQUIRED for this mode
-      topic: "Manual topic"
-      persona1: "Manual Persona 1"
-      persona1_desc: "Desc..."
-      persona2: "Manual Persona 2"
-      persona2_desc: "Desc..."
-      scenario: "Manual scenario"
-      style: "Manual style"
-      # include_points: "optional,keywords"
-    # No upload specified for this run
+| Flag | Description |
+|---|---|
+| `--character-pool FILE` | YAML file with character names |
+| `--persona-desc-pool FILE` | YAML file with character descriptions |
 
-  # ... add more runs as needed
+### Web Search (Creative Brief)
+
+| Flag | Description |
+|---|---|
+| `--persona1-search-term TEXT` | Web search term for persona 1 context |
+| `--persona2-search-term TEXT` | Web search term for persona 2 context |
+
+### General
+
+| Flag | Default | Description |
+|---|---|---|
+| `--num-examples N` | 3 | Number of conversations to generate |
+| `--output-file PATH` | `generated_data.jsonl` | Output file path |
+| `--model-id ID` | `Qwen/Qwen2.5-7B-Instruct` | HuggingFace model for generation |
+| `--max-new-tokens N` | 4096 | Max tokens per generation |
+| `--load-in-4bit` | off | Enable 4-bit quantization (requires bitsandbytes) |
+| `--upload-to-hub REPO` | — | Upload dataset to HuggingFace Hub |
+| `--force-upload` | off | Skip upload confirmation |
+| `--role-mapping MAP` | `p1=human,p2=gpt` | Map personas to ShareGPT roles |
+
+## Output Format
+
+Each line in the JSONL output is one conversation turn:
+
+```json
+{
+  "conversation_id": 0,
+  "turn_number": 0,
+  "role": "human",
+  "speaker_name": "Tony",
+  "topic": "best pizza toppings",
+  "scenario": "kitchen argument",
+  "style": "heated but friendly debate",
+  "include_points": "",
+  "content": "So, you're telling me pineapple on pizza is the ultimate topping?"
+}
 ```
 
-**2. Run the Batch Script**
+## For Contributors
 
-Execute `batch_generate.py` and point it to your YAML configuration file.
+### Package Structure
+
+| Module | Responsibility |
+|---|---|
+| `cli.py` | Argument parsing, mode detection, orchestration |
+| `models.py` | Model/tokenizer loading, pipeline creation |
+| `prompts.py` | System prompts and message builders |
+| `generation.py` | LLM call wrappers with retry logic |
+| `parsing.py` | Regex parsers for LLM output |
+| `output.py` | JSONL writing and dataset card templates |
+| `hub.py` | HuggingFace Hub upload |
+| `character_pool.py` | YAML pool loading and random pairing |
+| `web_search.py` | DuckDuckGo persona context search |
+
+### Running Tests
 
 ```bash
-# Activate your virtual environment first!
-source venv/bin/activate 
-
-python batch_generate.py path/to/your/config.yaml
-
-# Example using one of the provided configs:
-python batch_generate.py examples/batch_rockstars_celebs.yaml 
+pip install -r requirements-dev.txt
+pytest tests/ -v                    # all 81 tests
+pytest tests/test_parsing.py -v     # one module
 ```
 
-The script will iterate through each run defined in the YAML, construct the appropriate `generate.py` command, execute it, and log the progress and results.
+No GPU required for tests — LLM calls are mocked.
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-### Argument Reference (`generate.py`)
-
-Tailor your generation precisely. Provide EITHER `--creative-brief` OR the set of detailed manual arguments. Use `--delete-repo` only for deleting repositories.
-
-**Mode Selection**
-
-*   `--creative-brief STR`: Provide a high-level concept (e.g., *"Godzilla ordering takeout sushi"*). The script uses the LLM specified by `--model-id` to first generate the detailed arguments (topic, personas, etc.) automatically, potentially informed by web context if search terms are provided (see below). It also performs an **image search** for the personas. Then, for each requested example, it generates a *new, related* topic/scenario variation while keeping the initially generated personas consistent. If you provide this, any manual or fixed-persona arguments are ignored.
-*   `--delete-repo USERNAME/REPO_ID [USERNAME/REPO_ID ...]`: **DANGER ZONE.** Use this argument *instead of* generation arguments to permanently delete one or more Hugging Face Hub dataset repositories. **THIS ACTION IS IRREVERSIBLE.** You will be asked for confirmation. Accepts multiple space-separated repository IDs.
-
-**Creative Brief Web Context (Optional - Only used with `--creative-brief`)**
-
-*   `--persona1-search-term STR`: If provided along with `--creative-brief`, the script will perform a web search (via DuckDuckGo) using this exact term. The fetched text snippets will be added as context to the prompt used for generating the main arguments (including `--persona1-desc`), helping the LLM create a more informed persona. Ideal for less common or specific characters/individuals. Requires `duckduckgo-search` library.
-*   `--persona2-search-term STR`: Same as above, but for Persona 2.
-
-**Detailed Arguments (Manual Mode)**
-
-*(Required if not using `--creative-brief`, `--delete-repo`, or Fixed Persona Mode)*
-
-*   `--topic STR`: Central topic/subject of the conversation.
-*   `--persona1 STR`: Name of the first speaker (this name will map to the `human` role in the output data). An **image search** will be performed using this name.
-*   `--persona1-desc STR`: Detailed description of the first speaker's personality, background, speech patterns, quirks, etc. (Crucial for generation quality!).
-*   `--persona2 STR`: Name of the second speaker (maps to the `gpt` role). An **image search** will be performed using this name.
-*   `--persona2-desc STR`: Detailed description of the second speaker.
-*   `--scenario STR`: The setting, situation, or context for the conversation.
-*   `--style STR`: Desired tone, mood, and linguistic style (e.g., "formal debate", "casual chat", "Shakespearean insults", "valley girl slang", "hardboiled detective noir").
-*   `--include-points STR`: Optional comma-separated list of keywords or talking points the conversation should try to naturally incorporate (e.g., `"time travel paradox,grandfather,temporal mechanics"`). (Default: `None`)
-
-**Fixed Persona + Variation Mode Arguments**
-
-*(Required if using `--enable-variation`. Cannot be used with `--creative-brief` or manual persona/topic arguments)*
-
-*   `--enable-variation`: **Must be set** to activate this mode. Enables topic/scenario/style variation based on initial context while keeping personas fixed.
-*   `--fixed-persona1 STR`: Fixed name for Persona 1. An **image search** will be performed using this name.
-*   `--fixed-persona1-desc STR`: Fixed description for Persona 1.
-*   `--fixed-persona2 STR`: Fixed name for Persona 2. An **image search** will be performed using this name.
-*   `--fixed-persona2-desc STR`: Fixed description for Persona 2.
-*   `--initial-topic STR`: Seed topic used for the first example and as a basis for variations.
-*   `--initial-scenario STR`: Seed scenario used for the first example and as a basis for variations.
-*   `--initial-style STR`: Seed style used for the first example and as a basis for variations.
-*   `--include-points STR`: Optional comma-separated list of keywords or talking points, same as in Manual Mode. (Default: `None`)
-
-**Random Pairings Mode Arguments**
-
-*(Required if using `--random-pairings`. Cannot be used with `--creative-brief`, `--persona1`, or Fixed Persona arguments)*
-
-*   `--random-pairings`: **Must be set** to activate this mode. Enables selection of random character pairs from pools for each conversation.
-*   `--character-pool STR`: Path to a YAML file containing a list of character names under a `characters` key. File should be in the `character-config` directory or include a full path.
-*   `--persona-desc-pool STR`: Path to a YAML file containing a dictionary of character names to descriptions under a `descriptions` key. File should be in the `character-config` directory or include a full path.
-*   `--enable-variation`: Optional flag that, when combined with `--random-pairings`, enables topic/scenario/style variation for each conversation.
-*   `--initial-topic STR`: Base topic used for conversations (or as a seed for variations if `--enable-variation` is set).
-*   `--initial-scenario STR`: Base scenario used for conversations (or as a seed for variations if `--enable-variation` is set).
-*   `--initial-style STR`: Base style used for conversations (or as a seed for variations if `--enable-variation` is set).
-*   `--include-points STR`: Optional comma-separated list of keywords or talking points, same as in Manual Mode. (Default: `None`)
-
-**General Arguments (Applicable to Generation Modes)**
-
-*   `--num-examples INT`: How many distinct conversation examples to generate. (Default: 3)
-*   `--output-file PATH`: Path to save the output JSON Lines (`.jsonl`) file. (Default: `generated_data.jsonl`)
-*   `--model-id STR`: Hugging Face model ID (e.g., `meta-llama/Meta-Llama-3-8B-Instruct`). **Crucially, this model is used for BOTH the conversation generation AND the argument/variation generation steps.** Choose a strong instruction-following model. (Default: `meta-llama/Meta-Llama-3-8B-Instruct`)
-*   `--max-new-tokens INT`: Max tokens the LLM can generate in the main conversation step. Adjust based on desired conversation length and model limits. (Default: 768)
-*   `--upload-to-hub STR`: Your Hugging Face Hub repository ID (e.g., `YourUsername/YourDatasetName`) to upload the results to. The script will create the repo if it doesn't exist. Requires prior login. (Default: None)
-*   `--force-upload`: Skip the confirmation prompt when uploading to the Hub. Use with caution! (Default: False)
-*   `--validate-local-save`: Perform basic checks on the locally saved `.jsonl` file after writing. (Currently placeholder, no checks implemented). (Default: False)
-*   `--load-in-4bit`: Enable 4-bit quantization (NF4) using `bitsandbytes` for model loading. Reduces memory usage and can speed up inference, especially on consumer GPUs. Requires the `bitsandbytes` library to be installed. (Default: False)
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-### Examples
-
-Here are various examples demonstrating how to generate data for specific goals using both modes:
-
-<details>
-  <summary>Example 1: Training a "Sitcom Banter" Style LoRA (Manual Mode)</summary>
-
-*Goal: Create a LoRA that makes an LLM generate witty, observational dialogue reminiscent of a classic sitcom.*
-
-```bash
-python generate.py \
-  --num-examples 1000 \
-  --topic "the absurdity of everyday errands" \
-  --persona1 "Alex" \
-  --persona1-desc "slightly neurotic, prone to overthinking, often uses rhetorical questions" \
-  --persona2 "Sam" \
-  --persona2-desc "more laid-back, often amused by Alex's antics, responds with dry wit" \
-  --scenario "waiting in line at the post office" \
-  --style "observational, witty, fast-paced banter, slightly absurd, like Seinfeld" \
-  --include-points "long lines, confusing forms, questionable package handling, passive aggression" \
-  --output-file sitcom_style_dataset.jsonl \
-  --model-id meta-llama/Meta-Llama-3-8B-Instruct
-```
-
-*Explanation: High volume (`--num-examples 1000`), consistent detailed parameters (especially `--style` and descriptive personas) focus the data on the target style.*
-
-</details>
-
-<details>
-  <summary>Example 2: Training a "Helpful Coding Mentor" Persona LoRA (Manual Mode)</summary>
-
-*Goal: Fine-tune a model to act as a patient, encouraging coding mentor.*
-
-```bash
-python generate.py \
-  --num-examples 500 \
-  --topic "debugging a common Python error (e.g., IndexError)" \
-  --persona1 "MentorBot" \
-  --persona1-desc "a patient, knowledgeable, and encouraging Python tutor AI. Uses analogies, asks guiding questions rather than giving direct answers, celebrates small successes." \
-  --persona2 "Learner" \
-  --persona2-desc "a beginner programmer feeling slightly stuck but eager to learn, expresses confusion clearly." \
-  --scenario "working through a coding problem together online via chat" \
-  --style "supportive, clear, step-by-step, educational, positive reinforcement" \
-  --include-points "traceback, variable scope, print debugging, list index, off-by-one, debugging process" \
-  --output-file mentor_persona_dataset.jsonl \
-  --model-id meta-llama/Meta-Llama-3-8B-Instruct
-```
-
-*Explanation: Focus is on detailed `--persona1-desc` capturing the desired mentor traits (patience, guiding questions) and a supportive `--style` to shape the mentor's voice.*
-
-</details>
-
-<details>
-  <summary>Example 3: Training a Topic-Focused LoRA ("Explaining Quantum Computing Simply") (Manual Mode)</summary>
-
-*Goal: Make the LLM more fluent and natural when explaining a complex topic conversationally.*
-
-```bash
-python generate.py \
-  --num-examples 750 \
-  --topic "basic concepts of quantum computing" \
-  --persona1 "QuantumGuru" \
-  --persona1-desc "an expert simplifying quantum concepts using everyday analogies (like coin flips for superposition). Patient and enjoys teaching." \
-  --persona2 "CuriousChris" \
-  --persona2-desc "intelligent but new to quantum, asks clarifying questions, tries to relate concepts to familiar things." \
-  --scenario "a casual conversation over coffee trying to understand new tech trends" \
-  --style "simplified, analogy-driven, patient, engaging, avoiding deep jargon where possible" \
-  --include-points "qubit, superposition, entanglement, potential applications, uncertainty, classical vs quantum" \
-  --output-file quantum_topic_dataset.jsonl \
-  --model-id meta-llama/Meta-Llama-3-8B-Instruct
-```
-
-*Explanation: Teaches the *conversational flow* of explaining the specific `--topic`, reinforced by simplifying personas, analogy-driven descriptions, and style.*
-
-</details>
-
-<details>
-  <summary>Example 4: Enhancing Instruction Adherence (Specific Constraints) (Manual Mode)</summary>
-
-*Goal: Train the model to better incorporate specific keywords or constraints during generation.*
-
-```bash
-python generate.py \
-  --num-examples 800 \
-  --topic "benefits of renewable energy sources" \
-  --persona1 "EcoAdvocate" \
-  --persona1-desc "passionate environmental scientist, presents facts and figures clearly, optimistic tone." \
-  --persona2 "SkepticSam" \
-  --persona2-desc "concerned about costs and grid reliability, asks challenging but fair questions, slightly pessimistic tone." \
-  --scenario "a public town hall meeting discussion about local energy policy" \
-  --style "informative but persuasive debate, addressing counterarguments respectfully" \
-  --include-points "solar panel efficiency, wind turbine placement, grid stability, battery storage, long-term cost savings, carbon emissions, job creation" \
-  --output-file instruction_adherence_dataset.jsonl \
-  --model-id meta-llama/Meta-Llama-3-8B-Instruct
-```
-
-*Explanation: Training on data where specific `--include-points` were required reinforces the model's ability to follow constraints within a natural dialogue structure.*
-
-</details>
-
-<details>
-  <summary>Example 5: Generating Data for Creative Writing (Sci-Fi Pilot Scene) (Manual Mode)</summary>
-
-*Goal: Draft dialogue for a specific scene in a science fiction TV pilot.*
-
-```bash
-python generate.py \
-  --num-examples 20 \
-  --topic "analyzing strange readings from an unknown alien artifact" \
-  --persona1 "Captain Eva Rostova" \
-  --persona1-desc "experienced, cautious starship captain, focused on procedure and crew safety. Speaks formally." \
-  --persona2 "Dr. Aris Thorne" \
-  --persona2-desc "brilliant but impulsive xeno-archaeologist, eager for discovery, sometimes disregards protocol. Speaks excitedly, uses technical jargon." \
-  --scenario "on the bridge of the starship 'Odyssey' examining scan results displayed on a large viewscreen" \
-  --style "tense, suspenseful, professional sci-fi dialogue, sense of wonder mixed with potential danger" \
-  --include-points "unknown energy signature, unusual material composition, potential risks, isolation, first contact protocol" \
-  --output-file scifi_scene_dialogue.jsonl \
-  --model-id meta-llama/Meta-Llama-3-8B-Instruct
-```
-
-*Explanation: All parameters work together to create dialogue for a specific fictional moment. Lower `--num-examples` is suitable for drafting multiple variations of the scene.*
-
-</details>
-
-<details>
-  <summary>Example 6: Generating Varied Historical Banter from a Brief (Creative Brief Mode)</summary>
-
-*Goal: Quickly generate diverse dialogue between consistent historical figures without defining all details manually.*
-
-```bash
-python generate.py \
-  --creative-brief "A philosophical debate between Leonardo da Vinci and Marie Curie about the nature of discovery." \
-  --num-examples 25 \
-  --output-file brief_historical_debate.jsonl \
-  --model-id meta-llama/Meta-Llama-3-8B-Instruct \
-  --upload-to-hub YourUser/VariedHistoricalDebate
-```
-
-*Explanation: The script uses the LLM to interpret the `--creative-brief`, generate initial detailed parameters (personas, topic, etc.). Then, for each of the 25 examples, it generates a *new, related* topic/scenario (e.g., discussing specific inventions, the ethics of science, the role of observation) while keeping the da Vinci/Curie personas consistent.*
-
-</details>
-
-<details>
-  <summary>Example 7: Generating Dialogue for a Specific Person using Web Search (Creative Brief Mode)</summary>
-
-*Goal: Create dialogue involving a specific, possibly less famous individual by providing web search terms for context.*
-
-```bash
-python generate.py \
-  --creative-brief "Generate a conversation between tech reviewer Marques Brownlee (MKBHD) and legendary filmmaker Stanley Kubrick about the design philosophy of smartphones vs. cinema cameras." \
-  --num-examples 5 \
-  --persona1-search-term "Marques Brownlee MKBHD tech review style personality" \
-  --persona2-search-term "Stanley Kubrick filmmaker personality directing style meticulous" \
-  --output-file mkbhd_kubrick_web_terms_5.jsonl
-```
-
-*Explanation: The script uses the LLM for the overall brief interpretation and topic variation. However, it uses the provided `--personaX-search-term` arguments to fetch context from DuckDuckGo. This context helps the LLM generate more accurate `--personaX-desc` arguments, enabling conversations involving specific individuals the base model might not know well.*
-
-</details>
-
-<details>
-  <summary>Example 8: Generating Fantasy Dialogue from a Brief (Creative Brief Mode)</summary>
-
-*Goal: Create diverse dialogue for a fantasy setting from a simple concept.*
-
-```bash
-python generate.py \
-  --creative-brief "An ancient, wise dragon trying to explain magic to a skeptical, pragmatic dwarf blacksmith." \
-  --num-examples 50 \
-  --output-file brief_fantasy_talk.jsonl \
-  --validate-local-save
-```
-
-*Explanation: The script generates initial parameters from the brief, then varies the topic/scenario (e.g., explaining different types of magic, the cost of spells, magical artifacts vs. forged items) for each of the 50 examples, keeping the dragon and dwarf personas.*
-
-</details>
-
-<details>
-  <summary>Example 9: Generating Absurdist Comedy Variations from a Brief (Creative Brief Mode)</summary>
-
-*Goal: Generate surreal, varied dialogue based on an unusual pairing.*
-
-```bash
-python generate.py \
-  --creative-brief "A sentient existentialist toaster discussing the meaning of crumbs with a flock of nihilistic pigeons in a park." \
-  --num-examples 10 \
-  --output-file brief_toaster_pigeons.jsonl
-```
-
-*Explanation: Perfect for highly imaginative scenarios! The script generates varied crumb-related topics/scenarios (e.g., the futility of sweeping, the beauty of decay, pigeons judging bread types) for the toaster and pigeons across 10 examples.*
-
-</details>
-
-<details>
-  <summary>Example 10: Generating Specific Genre Dialogue (Noir) from a Brief (Creative Brief Mode)</summary>
-
-*Goal: Quickly generate dialogue fitting a specific genre like Noir using only a brief.*
-
-```bash
-python generate.py \
-  --creative-brief "A hardboiled detective interrogating a nervous informant about a stolen artifact in a smoky, rain-slicked alley." \
-  --num-examples 10 \
-  --output-file brief_noir_interrogation.jsonl \
-  --model-id meta-llama/Meta-Llama-3-8B-Instruct
-```
-
-*Explanation: The `--creative-brief` provides strong genre cues (hardboiled detective, nervous informant, smoky alley). The LLM generates appropriate personas, topics, scenarios, and a noir style, varying the specifics (e.g., the nature of the artifact, the informant's specific fear) across the examples.*
-
-</details>
-
-<details>
-  <summary>Example 11: Generating Dialogue for Specific Historical Figures using Web Search (Creative Brief Mode)</summary>
-
-*Goal: Create dialogue between specific, potentially niche historical figures by providing web search terms for context.*
-
-```bash
-python generate.py \
-  --creative-brief "Conversation between pioneering computer scientist Grace Hopper and minimalist artist Donald Judd about optimizing naval logistics vs. arranging metal boxes." \
-  --num-examples 5 \
-  --persona1-search-term "Grace Hopper admiral computer scientist personality nickname Amazing Grace COBOL" \
-  --persona2-search-term "Donald Judd artist minimalism Marfa Texas personality meticulous" \
-  --output-file hopper_judd_web_search.jsonl \
-  --model-id meta-llama/Meta-Llama-3-8B-Instruct
-```
-
-*Explanation: The brief sets the stage. The `--personaX-search-term` arguments guide the LLM's argument generation step by providing specific web context for Grace Hopper and Donald Judd, helping capture their distinct personalities and fields, even if they aren't strongly represented in the base model's training.*
-
-</details>
-
-<details>
-  <summary>Example 12: Generating Dialogue for Specific Fictional Characters using Web Search (Creative Brief Mode)</summary>
-
-*Goal: Create dialogue between well-known but perhaps less common fictional characters using web search to solidify their personas.*
-
-```bash
-python generate.py \
-  --creative-brief "A discussion between the AI assistant Clippy and the philosophical robot Marvin the Paranoid Android about the inherent suffering of existence vs. offering unsolicited help." \
-  --num-examples 8 \
-  --persona1-search-term "Microsoft Clippy paperclip assistant personality annoying helpful interruption" \
-  --persona2-search-term "Marvin the Paranoid Android Hitchhiker's Guide personality depressed intelligent brain the size of a planet" \
-  --output-file clippy_marvin_web_search.jsonl \
-  --model-id meta-llama/Meta-Llama-3-8B-Instruct
-```
-
-*Explanation: Similar to the historical example, the brief provides the core idea, while the `--personaX-search-term` arguments provide specific context scraped from the web about Clippy and Marvin, ensuring their iconic (and contrasting) personalities are captured accurately during the initial argument generation, leading to more authentic dialogue.*
-
-</details>
-
-**Leveraging Web Search for Current Events & Trending Topics**
-
-One powerful application of Creative Brief mode with `--personaX-search-term` is generating dialogue grounded in current events, recent news, or ongoing public discussions involving specific individuals. By providing relevant search terms, you can create datasets reflecting timely controversies, collaborations, or statements.
-
-<details>
-  <summary>Example 13: Generating Dialogue around a Celebrity Controversy (Creative Brief + Search)</summary>
-
-*Goal: Create varied conversations reflecting the public discourse surrounding a recent celebrity feud or controversial statement.*
-
-```bash
-python generate.py \
-  --creative-brief "A discussion between Mickey Rourke and JoJo Siwa about the trending controversy on Celebrity Big Brother UK following homophobic remarks and subsequent apologies." \
-  --persona1-search-term "Mickey Rourke Celebrity Big Brother homophobic comments" \
-  --persona2-search-term "JoJo Siwa response apology homophobic remark" \
-  --num-examples 100 \
-  --output-file trending_MickeyRourke_JoJoSiwa_100.jsonl \
-  --model-id meta-llama/Meta-Llama-3-8B-Instruct \
-  --load-in-4bit
-```
-
-*Explanation: This uses a specific, current controversy as the brief. The `--personaX-search-term` arguments pull in recent context about the remarks and responses, enabling the LLM to generate varied, relevant conversations reflecting the situation.* 
-
-</details>
-
-<details>
-  <summary>Example 14: Generating Dialogue around On-Set Tensions (Creative Brief + Search)</summary>
-
-*Goal: Generate conversations reflecting reported tensions or rumors between actors on a popular show.*
-
-```bash
-python generate.py \
-  --creative-brief "A discussion between Jason Isaacs and Walton Goggins about the trending on-set tensions and feud rumors during the filming of 'White Lotus'." \
-  --persona1-search-term "Jason Isaacs White Lotus arguments on set" \
-  --persona2-search-term "Walton Goggins feud rumors White Lotus" \
-  --num-examples 100 \
-  --output-file trending_JasonIsaacs_WaltonGoggins_100.jsonl \
-  --model-id meta-llama/Meta-Llama-3-8B-Instruct \
-  --load-in-4bit
-```
-
-*Explanation: Focuses on reported on-set dynamics. The search terms help ground the personas in the context of the show and the alleged feud, allowing for varied speculative conversations.*
-
-</details>
-
-<details>
-  <summary>Example 15: Generating Dialogue around a Business/Legal Dispute (Creative Brief + Search)</summary>
-
-*Goal: Create conversations reflecting a high-profile trademark battle or legal dispute between public figures.*
-
-```bash
-python generate.py \
-  --creative-brief "A discussion between Katy Perry and Katie Jane Taylor about the trending trademark battle over a clothing brand and intellectual property rights." \
-  --persona1-search-term "Katy Perry trademark battle clothing" \
-  --persona2-search-term "Katie Jane Taylor trademark dispute Katy Perry" \
-  --num-examples 100 \
-  --output-file trending_KatyPerry_KatieJaneTaylor_100.jsonl \
-  --model-id meta-llama/Meta-Llama-3-8B-Instruct \
-  --load-in-4bit
-```
-
-*Explanation: Uses a specific business dispute. Search terms provide context on the legal battle, enabling the LLM to generate conversations about intellectual property, brand identity, and the specifics of the case.*
-
-</details>
-
-<details>
-  <summary>Example 16: Generating a Progressive AI Course Curriculum (Batch + Creative Brief + Search)</summary>
-
-*Goal: Create a series of datasets representing levels in an AI programming course, where the learner persona evolves.* 
-
-*Approach: Use `batch_generate.py` with a YAML config. Each run defines a course level using Creative Brief mode. A consistent tutor persona (`EnfuseBot`) guides the learner. The crucial part is using `--persona2-search-term` to simulate the learner's increasing knowledge and likely points of confusion at each level.* 
-
-*YAML Configuration (`examples/ai_course_curriculum.yaml`):*
-```yaml
-# ai_course_curriculum.yaml
-output_directory: "ai_course_datasets"
-force_upload: true
-
-runs:
-  # Level 1: Intro
-  - id: "level1_intro"
-    output_file: "ai_course_level1_intro.jsonl"
-    upload_repo: "cahlen/AICourse-Level1-Intro"
-    num_examples: 500
-    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
-    load_in_4bit: true
-    creative_brief: "EnfuseBot introduces fundamental AI/ML concepts..."
-    persona2_search_term: "Beginner Python programmer confused about AI..."
-  # Level 2: Scikit-learn
-  - id: "level2_sklearn"
-    output_file: "ai_course_level2_sklearn.jsonl"
-    upload_repo: "cahlen/AICourse-Level2-Sklearn"
-    num_examples: 500
-    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
-    load_in_4bit: true
-    creative_brief: "EnfuseBot explains core ML concepts and Scikit-learn..."
-    persona2_search_term: "Learner starting Scikit-learn confused about supervised..."
-  # Level 3: Deep Learning
-  - id: "level3_deeplearning"
-    output_file: "ai_course_level3_deeplearning.jsonl"
-    upload_repo: "cahlen/AICourse-Level3-DeepLearning"
-    num_examples: 500
-    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
-    load_in_4bit: true
-    creative_brief: "EnfuseBot introduces Deep Learning fundamentals..."
-    persona2_search_term: "Student confused about neural networks activation..."
-  # Level 4: Computer Vision
-  - id: "level4_computervision"
-    output_file: "ai_course_level4_computervision.jsonl"
-    upload_repo: "cahlen/AICourse-Level4-ComputerVision"
-    num_examples: 500
-    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
-    load_in_4bit: true
-    creative_brief: "EnfuseBot explains Computer Vision fundamentals..."
-    persona2_search_term: "Learner asking about Computer Vision CNNs..."
-  # Level 5: NLP
-  - id: "level5_nlp"
-    output_file: "ai_course_level5_nlp.jsonl"
-    upload_repo: "cahlen/AICourse-Level5-NLP"
-    num_examples: 500
-    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
-    load_in_4bit: true
-    creative_brief: "EnfuseBot covers basic NLP concepts..."
-    persona2_search_term: "Student learning NLP text representation embeddings..."
-  # Level 6: Training
-  - id: "level6_training"
-    output_file: "ai_course_level6_training.jsonl"
-    upload_repo: "cahlen/AICourse-Level6-Training"
-    num_examples: 500
-    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
-    load_in_4bit: true
-    creative_brief: "EnfuseBot guides Learner through training models..."
-    persona2_search_term: "Learner questions about model training loops evaluation..."
-```
-
-*Command to Run:* 
-```bash
-python batch_generate.py examples/ai_course_curriculum.yaml
-```
-
-*Explanation: This batch job generates 6 datasets, each simulating a stage in an AI course. By adjusting the `creative_brief` and `persona2_search_term` for each run, the conversations adapt to the expected learner level, creating targeted data for training level-specific chatbot LoRAs.* 
-
-</details>
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-### Output Format
-
-Understanding where your data goes:
-
-1.  **Local File (`.jsonl`):** The script always saves the generated data locally first to the path specified by `--output-file`. This is a **JSON Lines** file: each line is a complete JSON object representing a single turn.
-
-    ```json
-    {"conversation_id": 0, "turn_number": 0, "role": "human", "speaker_name": "Alex", "topic": "the absurdity of everyday errands", "scenario": "waiting in line at the post office", "style": "observational, witty, fast-paced banter, slightly absurd, like Seinfeld", "include_points": "long lines, confusing forms, questionable package handling, passive aggression", "content": "Seriously, Sam, look at this line. Is time moving slower in here? Are we in some kind of bureaucratic vortex?"}
-    {"conversation_id": 0, "turn_number": 1, "role": "gpt", "speaker_name": "Sam", "topic": "the absurdity of everyday errands", "scenario": "waiting in line at the post office", "style": "observational, witty, fast-paced banter, slightly absurd, like Seinfeld", "include_points": "long lines, confusing forms, questionable package handling, passive aggression", "content": "Only if the vortex requires triplicate forms for entry. And possibly a blood sample. Did you fill out the 7B/Stroke-6 form for *existing* in the line?"}
-    {"conversation_id": 1, "turn_number": 0, "role": "human", "speaker_name": "Alex", "topic": "the existential dread of choosing coffee beans", "scenario": "staring blankly at a shelf in a grocery store", "style": "observational, witty, fast-paced banter, slightly absurd, like Seinfeld", "include_points": "origin, roast level, ethical sourcing, paralysis by analysis", "content": "Single origin Ethiopian Yirgacheffe... or the house blend... medium roast... dark roast... Sam, how do people *choose*?"}
-    ```
-
-    Each row has the following keys:
-
-    *   `conversation_id` (int64): Identifier grouping turns within the dataset (0-indexed).
-    *   `turn_number` (int64): The sequence number of the turn within its conversation (0-indexed).
-    *   `role` (string): Speaker role (`human` or `gpt`, mapping from Persona 1 and Persona 2 respectively).
-    *   `speaker_name` (string): The actual name of the speaker for this turn (e.g., 'Alex', 'Sam').
-    *   `topic` (string): The specific topic generated/used for this conversation.
-    *   `scenario` (string): The specific scenario generated/used for this conversation.
-    *   `style` (string): The specific style generated/used for this conversation.
-    *   `include_points` (string): Comma-separated list of keywords requested for inclusion in this conversation (or empty string if none).
-    *   `content` (string): The text content of the turn.
-
-2.  **Hugging Face Hub Upload (Optional):** If you provide a repo ID via `--upload-to-hub`, the script performs a two-step upload after generation (and optional local validation):
-    *   **Step 1: Load & Push Dataset:** It loads the local `.jsonl` file into a Hugging Face `DatasetDict` object (`datasets.load_dataset('json', ...)`), ensuring features like `conversation_id` and `turn_number` are correctly typed (as `int64`). It then generates a detailed dataset card (README) using the run parameters (based on the *last successfully generated example* when using topic variation), including **any found persona images** and a description of the **generation mode used**, and attaches it to the `DatasetInfo`. Crucially, the `DatasetInfo` includes the `Features` definition matching the full schema. Finally, it pushes the `DatasetDict` to your Hub repository using `push_to_hub()`.
-    *   **Step 2: Upload Custom README:** It retrieves the generated dataset card content from the `DatasetInfo`, encodes it to bytes (`utf-8`), and uploads these bytes directly as the `README.md` file using `HfApi.upload_file`. This ensures your repository displays a rich, informative dataset card reflecting the generation parameters, found images, generation mode, and the full data schema.
-
-The final dataset on the Hub will have the full `conversation_id`, `turn_number`, `role`, `speaker_name`, `topic`, `scenario`, `style`, `include_points`, `content` structure and should display correctly in the dataset previewer.
-
-**Loading the Dataset from the Hub:**
-
-Once uploaded, the dataset can be easily loaded using the Hugging Face `datasets` library:
-
-```python
-from datasets import load_dataset
-
-# Replace with your actual repository ID
-# Ensure you are logged in (`huggingface-cli login`) if the dataset is private
-dataset_repo_id = "YourUsername/YourDatasetName" 
-ds = load_dataset(dataset_repo_id)
-
-# Access the data (e.g., the 'train' split)
-print(ds['train'][0]) 
-```
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-### Model & Fine-Tuning Notes
-
-Leveraging the generated data:
-
-*   **Generation Model:** Uses `meta-llama/Meta-Llama-3-8B-Instruct` by default for both argument generation (in brief mode) and conversation generation. You can change this with `--model-id` to any compatible Hugging Face text-generation model (results may vary!). Using larger/more capable models might yield better results, especially for complex briefs or nuanced styles.
-*   **Fine-Tuning Suitability:** This data is ideal for Parameter-Efficient Fine-Tuning (PEFT) methods like **LoRA**. You can create specialized LoRA adapters for style, persona, or topic without the cost of retraining the entire base model.
-*   **LoRA Benefits:** Smaller footprint, faster training, modular (mix and match adapters!), easily shareable.
-*   **Base Models:** For best results when fine-tuning, start with strong instruction-following base models like Llama 3 Instruct, Mistral Instruct, Mixtral Instruct, Qwen2 Instruct, Gemma Instruct, etc.
-*   **LoRA Training Example Dependencies:** If you plan to train LoRAs based on examples, note the required libraries: `peft`, `trl`, `bitsandbytes`. Install them with `pip install -U peft trl bitsandbytes`.
-*   **4-bit Quantization Dependency:** Using the `--load-in-4bit` flag requires the `bitsandbytes` library. Install it with `pip install bitsandbytes`.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- ROADMAP -->
-## Roadmap
-
-*   [x] Add batch generation script (`batch_generate.py`) with YAML configuration. (Done)
-*   [x] Add various generation examples to documentation (Manual, Brief, Fixed Persona, Batch). (Done)
-*   [ ] Implement `--validate-local-save` checks (currently placeholder).
-*   [ ] Explore adding more sophisticated topic/scenario variation techniques.
-*   [ ] Add option for different output formats (e.g., conversational JSON).
-*   [ ] Improve error handling and reporting in the batch script.
-
-See the [open issues](https://github.com/cahlen/conversation-dataset-generator/issues) for a full list of proposed features (and known issues).
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- CONTRIBUTING -->
-## Contributing
-
-Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
-
-If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also simply open an issue with the tag "enhancement".
-Don't forget to give the project a star! Thanks again!
-
-1.  Fork the Project
-2.  Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3.  Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4.  Push to the Branch (`git push origin feature/AmazingFeature`)
-5.  Open a Pull Request
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- LICENSE -->
 ## License
 
-Distributed under the MIT License. See `LICENSE` file for more information.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- CONTACT -->
-## Contact
-
-Cahlen Humphreys - [GitHub Profile](https://github.com/cahlen)
-
-Project Link: [https://github.com/cahlen/conversation-dataset-generator](https://github.com/cahlen/conversation-dataset-generator)
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- ACKNOWLEDGMENTS -->
-## Acknowledgments
-
-*   This README format is based on the [Best-README-Template](https://github.com/othneildrew/Best-README-Template) by Othneil Drew.
-*   [Hugging Face](https://huggingface.co/) for the `transformers`, `datasets`, `accelerate`, and `hub` libraries.
-*   [PyTorch](https://pytorch.org/)
-*   [Pandas](https://pandas.pydata.org/)
-*   [DuckDuckGo Search Library](https://pypi.org/project/duckduckgo-search/)
-*   [Img Shields](https://shields.io)
-*   [TQDM](https://github.com/tqdm/tqdm)
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- MARKDOWN LINKS & IMAGES -->
-<!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
-[license-shield]: https://img.shields.io/github/license/cahlen/conversation-dataset-generator.svg?style=for-the-badge
-[license-url]: https://github.com/cahlen/conversation-dataset-generator/blob/main/LICENSE
-[Python.org]: https://img.shields.io/badge/Python-3.8+-3776AB?style=for-the-badge&logo=python&logoColor=white
-[Python-url]: https://www.python.org/
-[PyTorch.org]: https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?style=for-the-badge&logo=PyTorch&logoColor=white
-[PyTorch-url]: https://pytorch.org/
-[Transformers.co]: https://img.shields.io/badge/transformers-%F0%9F%A4%97-FFD000.svg?style=for-the-badge
-[Transformers-url]: https://huggingface.co/docs/transformers/index
-[Accelerate.co]: https://img.shields.io/badge/accelerate-%F0%9F%A4%97-brightgreen.svg?style=for-the-badge
-[Accelerate-url]: https://huggingface.co/docs/accelerate/index
-[Datasets.co]: https://img.shields.io/badge/datasets-%F0%9F%A4%97-blue.svg?style=for-the-badge
-[Datasets-url]: https://huggingface.co/docs/datasets/index
-[Huggingface.co]: https://img.shields.io/badge/HuggingFace%20Hub-🤗-yellow?style=for-the-badge
-[Huggingface-url]: https://huggingface.co/
-[Pandas.pydata]: https://img.shields.io/badge/pandas-%23150458.svg?style=for-the-badge&logo=pandas&logoColor=white
-[Pandas-url]: https://pandas.pydata.org/
-[DuckDuckGo-Search-pypi]: https://img.shields.io/badge/DuckDuckGo%20Search-optional-grey?style=for-the-badge&logo=duckduckgo
-[DuckDuckGo-Search-url]: https://pypi.org/project/duckduckgo-search/
-[BitsAndBytes-pypi]: https://img.shields.io/badge/bitsandbytes-optional-purple?style=for-the-badge
-[BitsAndBytes-url]: https://pypi.org/project/bitsandbytes/
-[TQDM-pypi]: https://img.shields.io/badge/tqdm-✓-green?style=for-the-badge&logo=python
-[TQDM-url]: https://pypi.org/project/tqdm/
+MIT. See [LICENSE](LICENSE).
