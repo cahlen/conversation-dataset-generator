@@ -278,6 +278,51 @@ In the output, Captain America's turns will have `"role": "gpt"` and everyone el
 --role-mapping "Iron Man=human,Captain America=gpt,Thor=human"
 ```
 
+## Evaluation
+
+Measure the quality of generated datasets with intrinsic metrics:
+
+```bash
+python evaluate.py conversations.jsonl
+```
+
+```
+=== CDG Evaluation Report ===
+
+Dataset: conversations.jsonl
+Conversations: 100 | Turns: 1,247 | Avg turns: 12.5
+
+Speakers (3):
+  Iron Man                  34.2% of turns
+  Captain America           33.1% of turns
+  Thor                      32.7% of turns
+
+Diversity:
+  Distinct-1: 0.42 | Distinct-2: 0.81 | Distinct-3: 0.91
+  Topic diversity: 0.72 (0=identical, 1=unrelated)
+  Vocabulary richness (TTR): 0.68
+
+Coherence:
+  Turn-to-turn similarity: 0.47 (target: 0.3-0.6)
+  Self-repetition rate: 2.1%
+
+Speaker Distinctiveness:
+  Avg pairwise distance: 0.38 (higher = more distinct voices)
+```
+
+**Metrics:**
+- **Distinct-N** — fraction of unique n-grams. Higher = more lexically diverse.
+- **Topic diversity** — embedding distance between conversation topics. 0 = all identical, 1 = completely varied.
+- **Turn coherence** — how well consecutive turns relate. Sweet spot: 0.3-0.6.
+- **Self-repetition** — fraction of near-duplicate turns within conversations.
+- **Speaker distinctiveness** — how different each speaker's language is from others.
+
+Options:
+```bash
+python evaluate.py data.jsonl --format json     # machine-readable
+python evaluate.py data.jsonl --no-embeddings   # skip embedding metrics (faster)
+```
+
 ## For Contributors
 
 ### Package Structure

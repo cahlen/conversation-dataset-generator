@@ -37,17 +37,21 @@ python generate.py --continue-from data.jsonl --output-file more.jsonl
 
 # Batch generation
 python batch_generate.py examples/batch_mixed_modes.yaml
+
+# Evaluate generated data
+python evaluate.py conversations.jsonl
+python evaluate.py conversations.jsonl --no-embeddings    # skip embedding metrics
 ```
 
 ## Testing
 
 ```bash
-pytest tests/ -v                                          # all 121 tests
+pytest tests/ -v                                          # all 146 tests
 pytest tests/test_parsing.py -v                           # one module
 pytest tests/test_parsing.py::TestParseVariationOutput -v # one class
 ```
 
-121 tests across 6 test files. No GPU required — LLM calls are mocked.
+146 tests across 7 test files. No GPU required — LLM calls and embeddings are mocked.
 
 ## Architecture
 
@@ -64,6 +68,7 @@ pytest tests/test_parsing.py::TestParseVariationOutput -v # one class
 | `hub.py` | HuggingFace Hub upload (isolated, optional) |
 | `character_pool.py` | YAML pool loading, validation, random group selection |
 | `web_search.py` | DuckDuckGo persona context search for creative brief mode |
+| `evaluation.py` | Intrinsic quality metrics (distinct-N, coherence, speaker distinctiveness) |
 
 `generate.py` is a thin entry point that calls `cli.main()`.
 
