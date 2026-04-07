@@ -4,6 +4,7 @@ from conversation_dataset_generator.generation import (
     generate_args_from_brief,
     generate_topic_variation,
     generate_conversation,
+    generate_continuation,
     extract_generated_text,
 )
 
@@ -133,6 +134,107 @@ class TestGenerateConversation:
             topic="T", persona1="A", persona2="B",
             persona1_desc="d1", persona2_desc="d2",
             scenario="S", style="St",
+            generator_pipeline=pipeline, tokenizer=tokenizer,
+            max_new_tokens=512,
+        )
+        assert turns is None
+
+    def test_speaker_name_added_to_turns(self):
+        response = "Alice: Hello\nBob: Hi there\nAlice: How are you?"
+        pipeline = make_mock_pipeline(response)
+        tokenizer = make_mock_tokenizer()
+        turns = generate_conversation(
+            topic="Greeting", persona1="Alice", persona2="Bob",
+            persona1_desc="Friendly", persona2_desc="Grumpy",
+            scenario="Online", style="Casual",
+            generator_pipeline=pipeline, tokenizer=tokenizer,
+            max_new_tokens=512,
+        )
+        assert turns is not None
+        assert turns[0]["speaker_name"] == "Alice"
+        assert turns[1]["speaker_name"] == "Bob"
+        assert turns[2]["speaker_name"] == "Alice"
+
+
+class TestGenerateConversationMulti:
+    def test_three_speakers(self):
+        response = "Alice: Hello\nBob: Hi\nCharlie: Hey everyone"
+        pipeline = make_mock_pipeline(response)
+        tokenizer = make_mock_tokenizer()
+        turns = generate_conversation(
+            topic="Greet",
+            personas=[("Alice", "Friendly"), ("Bob", "Grumpy"), ("Charlie", "Quiet")],
+            scenario="Room", style="Casual",
+            generator_pipeline=pipeline, tokenizer=tokenizer,
+            max_new_tokens=512,
+        )
+        assert turns is not None
+        assert len(turns) == 3
+        assert turns[0]["speaker_name"] == "Alice"
+        assert turns[1]["speaker_name"] == "Bob"
+        assert turns[2]["speaker_name"] == "Charlie"
+
+    def test_legacy_two_speaker(self):
+        response = "Alice: Hello\nBob: Hi"
+        pipeline = make_mock_pipeline(response)
+        tokenizer = make_mock_tokenizer()
+        turns = generate_conversation(
+            topic="Greet", persona1="Alice", persona2="Bob",
+            persona1_desc="Friendly", persona2_desc="Grumpy",
+            scenario="Room", style="Casual",
+            generator_pipeline=pipeline, tokenizer=tokenizer,
+            max_new_tokens=512,
+        )
+        assert turns is not None
+        assert len(turns) == 2
+
+    def test_three_speakers_speaker_names(self):
+        response = "Alice: Hello\nBob: Hi\nCharlie: Hey everyone"
+        pipeline = make_mock_pipeline(response)
+        tokenizer = make_mock_tokenizer()
+        turns = generate_conversation(
+            topic="Greet",
+            personas=[("Alice", "Friendly"), ("Bob", "Grumpy"), ("Charlie", "Quiet")],
+            scenario="Room", style="Casual",
+            generator_pipeline=pipeline, tokenizer=tokenizer,
+            max_new_tokens=512,
+        )
+        assert turns is not None
+        for turn in turns:
+            assert "speaker_name" in turn
+
+
+class TestGenerateContinuation:
+    def test_basic_continuation(self):
+        response = "Alice: Continuing now\nBob: Great"
+        pipeline = make_mock_pipeline(response)
+        tokenizer = make_mock_tokenizer()
+        prior_turns = [
+            {"from": "human", "value": "Hello", "speaker_name": "Alice"},
+            {"from": "gpt", "value": "Hi", "speaker_name": "Bob"},
+        ]
+        turns = generate_continuation(
+            personas=[("Alice", "Friendly"), ("Bob", "Grumpy")],
+            prior_turns=prior_turns,
+            topic="Greet", scenario="Room", style="Casual",
+            generator_pipeline=pipeline, tokenizer=tokenizer,
+            max_new_tokens=512,
+        )
+        assert turns is not None
+        assert len(turns) == 2
+        assert turns[0]["speaker_name"] == "Alice"
+        assert turns[1]["speaker_name"] == "Bob"
+
+    def test_continuation_returns_none_on_empty(self):
+        pipeline = make_mock_pipeline("")
+        tokenizer = make_mock_tokenizer()
+        prior_turns = [
+            {"from": "human", "value": "Hello", "speaker_name": "Alice"},
+        ]
+        turns = generate_continuation(
+            personas=[("Alice", "Friendly"), ("Bob", "Grumpy")],
+            prior_turns=prior_turns,
+            topic="Greet", scenario="Room", style="Casual",
             generator_pipeline=pipeline, tokenizer=tokenizer,
             max_new_tokens=512,
         )

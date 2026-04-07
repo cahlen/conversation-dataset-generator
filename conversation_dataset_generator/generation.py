@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 
 from conversation_dataset_generator.parsing import (
@@ -12,6 +13,7 @@ from conversation_dataset_generator.parsing import (
 )
 from conversation_dataset_generator.prompts import (
     build_arg_generation_messages,
+    build_continuation_messages,
     build_conversation_messages,
     build_variation_messages,
 )
@@ -289,45 +291,86 @@ def generate_topic_variation(
     return result
 
 
+def _add_speaker_names(
+    turns: list[dict],
+    text: str,
+    persona_names: list[str],
+) -> None:
+    """Add ``speaker_name`` to each turn dict by scanning the raw LLM text.
+
+    Modifies *turns* in place.
+    """
+    name_pattern = re.compile(
+        r"^\s*(" + "|".join(re.escape(n) for n in persona_names) + r")\s*:",
+        re.IGNORECASE,
+    )
+    lines = text.strip().split("\n")
+    turn_idx = 0
+    for line in lines:
+        line_s = line.strip()
+        if not line_s:
+            continue
+        m = name_pattern.match(line_s)
+        if m and turn_idx < len(turns):
+            speaker = m.group(1).strip()
+            for name in persona_names:
+                if speaker.lower() == name.lower():
+                    turns[turn_idx]["speaker_name"] = name
+                    break
+            turn_idx += 1
+
+
 def generate_conversation(
     topic: str,
-    persona1: str,
-    persona2: str,
-    persona1_desc: str,
-    persona2_desc: str,
-    scenario: str,
-    style: str,
-    generator_pipeline,
-    tokenizer,
+    persona1: str | None = None,
+    persona2: str | None = None,
+    persona1_desc: str | None = None,
+    persona2_desc: str | None = None,
+    scenario: str = "",
+    style: str = "",
+    generator_pipeline=None,
+    tokenizer=None,
     max_new_tokens: int = 2048,
     include_points: str | None = None,
     role_mapping: dict | None = None,
+    *,
+    personas: list[tuple[str, str]] | None = None,
 ) -> list[dict] | None:
     """Generate a conversation and parse it into ShareGPT turn format.
 
+    Supports both the legacy 2-speaker interface (persona1/persona2) and the
+    N-speaker interface (personas kwarg).
+
     Args:
         topic: The main topic of conversation.
-        persona1: Name of the first speaker.
-        persona2: Name of the second speaker.
-        persona1_desc: Description of persona1.
-        persona2_desc: Description of persona2.
+        persona1: Name of the first speaker (legacy, ignored if personas given).
+        persona2: Name of the second speaker (legacy, ignored if personas given).
+        persona1_desc: Description of persona1 (legacy, ignored if personas given).
+        persona2_desc: Description of persona2 (legacy, ignored if personas given).
         scenario: The setting or situation.
         style: The conversational style.
         generator_pipeline: HuggingFace text-generation pipeline.
         tokenizer: Paired tokenizer.
         max_new_tokens: Maximum tokens to generate.
         include_points: Optional comma-separated points to cover.
-        role_mapping: Optional dict with keys "p1" and "p2" mapping to roles.
+        role_mapping: Optional dict mapping speakers to roles.
+        personas: List of (name, desc) tuples for N speakers (keyword-only).
 
     Returns:
         List of ShareGPT turn dicts, or None on failure.
     """
+    # Resolve personas list
+    if personas is None:
+        personas = [
+            (persona1, persona1_desc or ""),
+            (persona2, persona2_desc or ""),
+        ]
+
+    persona_names = [name for name, _ in personas]
+
     messages = build_conversation_messages(
         topic=topic,
-        persona1=persona1,
-        persona2=persona2,
-        persona1_desc=persona1_desc,
-        persona2_desc=persona2_desc,
+        personas=personas,
         scenario=scenario,
         style=style,
         include_points=include_points,
@@ -346,23 +389,84 @@ def generate_conversation(
 
     # Validate the output starts with one of the persona prefixes
     stripped = text.strip()
-    p1_prefix = f"{persona1}:"
-    p2_prefix = f"{persona2}:"
-    if not (
-        stripped.lower().startswith(p1_prefix.lower())
-        or stripped.lower().startswith(p2_prefix.lower())
+    if not any(
+        stripped.lower().startswith(f"{name.lower()}:")
+        for name in persona_names
     ):
         logger.warning(
             "generate_conversation: output does not start with a persona prefix. "
             "Got: %r", stripped[:80]
         )
 
-    turns, _, _ = parse_conversation_to_sharegpt(
-        text, persona1, persona2, role_mapping=role_mapping
+    turns, _ = parse_conversation_to_sharegpt(
+        text, personas=persona_names, role_mapping=role_mapping
     )
 
     if turns is None:
         logger.warning("generate_conversation: failed to parse conversation output.")
         return None
+
+    _add_speaker_names(turns, text, persona_names)
+
+    return turns
+
+
+def generate_continuation(
+    personas: list[tuple[str, str]],
+    prior_turns: list[dict],
+    topic: str,
+    scenario: str,
+    style: str,
+    generator_pipeline,
+    tokenizer,
+    max_new_tokens: int = 2048,
+    role_mapping: dict | None = None,
+) -> list[dict] | None:
+    """Generate a continuation of an existing conversation.
+
+    Args:
+        personas: List of (name, desc) tuples for all speakers.
+        prior_turns: List of turn dicts with 'speaker_name' and 'value' keys.
+        topic: The main topic of conversation.
+        scenario: The setting or situation.
+        style: The conversational style.
+        generator_pipeline: HuggingFace text-generation pipeline.
+        tokenizer: Paired tokenizer.
+        max_new_tokens: Maximum tokens to generate.
+        role_mapping: Optional dict mapping speakers to roles.
+
+    Returns:
+        List of ShareGPT turn dicts, or None on failure.
+    """
+    persona_names = [name for name, _ in personas]
+
+    messages = build_continuation_messages(
+        personas=personas,
+        prior_turns=prior_turns,
+        topic=topic,
+        scenario=scenario,
+        style=style,
+    )
+
+    text = _call_pipeline(
+        generator_pipeline,
+        tokenizer,
+        messages,
+        max_new_tokens=max_new_tokens,
+    )
+
+    if not text:
+        logger.warning("generate_continuation: pipeline returned no text.")
+        return None
+
+    turns, _ = parse_conversation_to_sharegpt(
+        text, personas=persona_names, role_mapping=role_mapping
+    )
+
+    if turns is None:
+        logger.warning("generate_continuation: failed to parse continuation output.")
+        return None
+
+    _add_speaker_names(turns, text, persona_names)
 
     return turns
