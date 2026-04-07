@@ -122,3 +122,63 @@ class TestBuildDatasetCard:
         assert card.startswith("---\n")
         assert "license:" in card
         assert "tags:" in card
+
+
+class TestWriteJsonlMultiSpeaker:
+    def test_turns_with_speaker_name(self, tmp_path):
+        conversations = [{
+            "turns": [
+                {"from": "human", "value": "Hello", "speaker_name": "Alice"},
+                {"from": "gpt", "value": "Hi", "speaker_name": "Bob"},
+                {"from": "gpt", "value": "Hey", "speaker_name": "Charlie"},
+            ],
+            "topic": "Greet", "scenario": "Room", "style": "Casual", "include_points": "",
+        }]
+        outfile = str(tmp_path / "out.jsonl")
+        count = write_jsonl(conversations, outfile)
+        assert count == 3
+        with open(outfile) as f:
+            rows = [json.loads(l) for l in f]
+        assert rows[0]["speaker_name"] == "Alice"
+        assert rows[1]["speaker_name"] == "Bob"
+        assert rows[2]["speaker_name"] == "Charlie"
+
+
+class TestLoadConversationFromJsonl:
+    def test_load_last_conversation(self, tmp_path):
+        from conversation_dataset_generator.output import load_conversation_from_jsonl
+        outfile = str(tmp_path / "data.jsonl")
+        with open(outfile, "w") as f:
+            for row in [
+                {"conversation_id": 0, "turn_number": 0, "role": "human", "speaker_name": "Alice", "topic": "T1", "scenario": "S1", "style": "St1", "include_points": "", "content": "Hello"},
+                {"conversation_id": 0, "turn_number": 1, "role": "gpt", "speaker_name": "Bob", "topic": "T1", "scenario": "S1", "style": "St1", "include_points": "", "content": "Hi"},
+                {"conversation_id": 1, "turn_number": 0, "role": "human", "speaker_name": "Alice", "topic": "T2", "scenario": "S2", "style": "St2", "include_points": "", "content": "Bye"},
+            ]:
+                f.write(json.dumps(row) + "\n")
+        result = load_conversation_from_jsonl(outfile)
+        assert result["conversation_id"] == 1
+        assert len(result["turns"]) == 1
+        assert result["turns"][0]["value"] == "Bye"
+        assert result["topic"] == "T2"
+        assert "Alice" in result["speaker_names"]
+
+    def test_load_specific_conversation(self, tmp_path):
+        from conversation_dataset_generator.output import load_conversation_from_jsonl
+        outfile = str(tmp_path / "data.jsonl")
+        with open(outfile, "w") as f:
+            for row in [
+                {"conversation_id": 0, "turn_number": 0, "role": "human", "speaker_name": "Alice", "topic": "T1", "scenario": "S1", "style": "St1", "include_points": "", "content": "Hello"},
+                {"conversation_id": 1, "turn_number": 0, "role": "human", "speaker_name": "Bob", "topic": "T2", "scenario": "S2", "style": "St2", "include_points": "", "content": "Hey"},
+            ]:
+                f.write(json.dumps(row) + "\n")
+        result = load_conversation_from_jsonl(outfile, conversation_id=0)
+        assert result["conversation_id"] == 0
+        assert result["turns"][0]["value"] == "Hello"
+
+    def test_missing_conversation_id_returns_none(self, tmp_path):
+        from conversation_dataset_generator.output import load_conversation_from_jsonl
+        outfile = str(tmp_path / "data.jsonl")
+        with open(outfile, "w") as f:
+            f.write(json.dumps({"conversation_id": 0, "turn_number": 0, "role": "human", "speaker_name": "A", "topic": "T", "scenario": "S", "style": "St", "include_points": "", "content": "Hi"}) + "\n")
+        result = load_conversation_from_jsonl(outfile, conversation_id=99)
+        assert result is None

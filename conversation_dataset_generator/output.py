@@ -19,8 +19,9 @@ def write_jsonl(conversations: list, output_path: str) -> int:
     """Write conversations to a JSONL file.
 
     Each conversation dict must have: turns, topic, scenario, style,
-    include_points, persona1_name, persona2_name.
-    Each turn has "from" (human/gpt) and "value".
+    include_points. For legacy two-speaker support, also include
+    persona1_name and persona2_name. For N-speaker support, each turn
+    may carry its own "speaker_name" key.
 
     Returns the total number of turns written.
     """
@@ -35,18 +36,21 @@ def write_jsonl(conversations: list, output_path: str) -> int:
             scenario = conv.get("scenario", "")
             style = conv.get("style", "")
             include_points = conv.get("include_points", "")
+            # Legacy fallback
             persona1_name = conv.get("persona1_name", "")
             persona2_name = conv.get("persona2_name", "")
 
             for turn_num, turn in enumerate(turns):
                 role = turn.get("from", "")
                 content = turn.get("value", "")
+                speaker_name = turn.get("speaker_name", "")
 
-                # Map role to speaker name: human -> persona1, gpt -> persona2
-                if role == "human":
-                    speaker_name = persona1_name
-                else:
-                    speaker_name = persona2_name
+                # Fallback to legacy persona mapping if no speaker_name on turn
+                if not speaker_name:
+                    if role == "human":
+                        speaker_name = persona1_name
+                    else:
+                        speaker_name = persona2_name
 
                 row = {
                     "conversation_id": conv_id,
@@ -63,6 +67,53 @@ def write_jsonl(conversations: list, output_path: str) -> int:
                 total_turns += 1
 
     return total_turns
+
+
+def load_conversation_from_jsonl(path: str, conversation_id: int | None = None) -> dict | None:
+    """Load a conversation from a JSONL file.
+
+    If conversation_id is None, loads the last conversation.
+    Returns dict with: conversation_id, turns, topic, scenario, style, include_points, speaker_names.
+    Returns None if not found.
+    """
+    rows_by_conv = {}
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            row = json.loads(line)
+            cid = row["conversation_id"]
+            if cid not in rows_by_conv:
+                rows_by_conv[cid] = []
+            rows_by_conv[cid].append(row)
+
+    if not rows_by_conv:
+        return None
+
+    if conversation_id is not None:
+        if conversation_id not in rows_by_conv:
+            return None
+        target_id = conversation_id
+    else:
+        target_id = max(rows_by_conv.keys())
+
+    rows = rows_by_conv[target_id]
+    rows.sort(key=lambda r: r["turn_number"])
+    first = rows[0]
+    speaker_names = list(dict.fromkeys(r["speaker_name"] for r in rows))
+
+    turns = [{"from": r["role"], "value": r["content"], "speaker_name": r["speaker_name"]} for r in rows]
+
+    return {
+        "conversation_id": target_id,
+        "turns": turns,
+        "topic": first.get("topic", ""),
+        "scenario": first.get("scenario", ""),
+        "style": first.get("style", ""),
+        "include_points": first.get("include_points", ""),
+        "speaker_names": speaker_names,
+    }
 
 
 def _mode_description(
