@@ -43,50 +43,101 @@ Rules:
 
 def build_conversation_messages(
     topic: str,
-    persona1: str,
-    persona2: str,
-    persona1_desc: str,
-    persona2_desc: str,
-    scenario: str,
-    style: str,
+    persona1: str | None = None,
+    persona2: str | None = None,
+    persona1_desc: str | None = None,
+    persona2_desc: str | None = None,
+    scenario: str = "",
+    style: str = "",
     include_points: str | None = None,
+    *,
+    personas: list[tuple[str, str]] | None = None,
 ) -> list[dict]:
     """Build system + user messages for generating a conversation.
 
     Args:
         topic: The main topic of conversation.
-        persona1: Name of the first speaker.
-        persona2: Name of the second speaker.
-        persona1_desc: Description of persona1's personality/background.
-        persona2_desc: Description of persona2's personality/background.
+        persona1: Name of the first speaker (legacy, ignored if personas given).
+        persona2: Name of the second speaker (legacy, ignored if personas given).
+        persona1_desc: Description of persona1 (legacy, ignored if personas given).
+        persona2_desc: Description of persona2 (legacy, ignored if personas given).
         scenario: The setting or situation for the conversation.
         style: The conversational style.
         include_points: Optional comma-separated points to include.
+        personas: List of (name, desc) tuples for N speakers. When provided,
+            legacy persona1/persona2 args are ignored.
 
     Returns:
         List with two dicts: system message and user message.
     """
+    if personas is None:
+        personas = [(persona1, persona1_desc), (persona2, persona2_desc)]
+
+    char_lines = "\n".join(f"- {name}: {desc}" for name, desc in personas)
+    speaker_count = "two" if len(personas) == 2 else str(len(personas))
+    format_lines = "\n".join(f"{name}: <dialogue>" for name, _ in personas)
+
     system_content = (
-        f"You are writing a realistic dialogue between two characters.\n\n"
-        f"Characters:\n"
-        f"- {persona1}: {persona1_desc}\n"
-        f"- {persona2}: {persona2_desc}\n\n"
+        f"You are writing a realistic dialogue between {speaker_count} characters.\n\n"
+        f"Characters:\n{char_lines}\n\n"
         f"Topic: {topic}\n"
         f"Scenario: {scenario}\n"
         f"Style: {style}\n\n"
         f"Format each turn as:\n"
-        f"{persona1}: <dialogue>\n"
-        f"{persona2}: <dialogue>\n\n"
+        f"{format_lines}\n\n"
         f"Write a natural, engaging conversation that reflects each character's "
         f"personality. Avoid repetition and keep it flowing naturally."
     )
 
-    user_content = "Generate a conversation between the two characters."
+    user_content = "Generate a conversation between the characters."
     if include_points:
         user_content += (
             f"\n\nMake sure to include the following points: {include_points}"
         )
 
+    return [
+        {"role": "system", "content": system_content},
+        {"role": "user", "content": user_content},
+    ]
+
+
+def build_continuation_messages(
+    personas: list[tuple[str, str]],
+    prior_turns: list[dict],
+    topic: str,
+    scenario: str,
+    style: str,
+) -> list[dict]:
+    """Build system + user messages for continuing an existing conversation.
+
+    Args:
+        personas: List of (name, desc) tuples for all speakers.
+        prior_turns: List of turn dicts with 'speaker_name' and 'value' keys.
+        topic: The main topic of conversation.
+        scenario: The setting or situation for the conversation.
+        style: The conversational style.
+
+    Returns:
+        List with two dicts: system message and user message.
+    """
+    char_lines = "\n".join(f"- {name}: {desc}" for name, desc in personas)
+    history_lines = []
+    for turn in prior_turns:
+        speaker = turn.get("speaker_name", "Unknown")
+        value = turn.get("value", "")
+        history_lines.append(f"{speaker}: {value}")
+    history_text = "\n".join(history_lines)
+
+    system_content = (
+        f"You are continuing an existing conversation between these characters:\n\n"
+        f"Characters:\n{char_lines}\n\n"
+        f"Topic: {topic}\nScenario: {scenario}\nStyle: {style}\n\n"
+        f"Maintain each character's established voice and continue naturally."
+    )
+    user_content = (
+        f"Here is the conversation so far:\n\n{history_text}\n\n"
+        f"Continue this conversation naturally. Pick up where it left off."
+    )
     return [
         {"role": "system", "content": system_content},
         {"role": "user", "content": user_content},

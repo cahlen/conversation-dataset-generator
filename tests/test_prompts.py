@@ -107,3 +107,54 @@ class TestBuildVariationMessages:
             original_brief="Original brief text here",
         )
         assert "Original brief text here" in msgs[1]["content"]
+
+
+class TestBuildConversationMessagesMulti:
+    def test_three_speakers_in_system(self):
+        msgs = build_conversation_messages(
+            topic="Party planning",
+            personas=[("Alice", "Friendly"), ("Bob", "Grumpy"), ("Charlie", "Quiet")],
+            scenario="Office", style="Casual",
+        )
+        assert "Alice" in msgs[0]["content"]
+        assert "Bob" in msgs[0]["content"]
+        assert "Charlie" in msgs[0]["content"]
+
+    def test_legacy_two_speaker_still_works(self):
+        msgs = build_conversation_messages(
+            topic="Weather",
+            persona1="Alice", persona2="Bob",
+            persona1_desc="Friendly", persona2_desc="Grumpy",
+            scenario="Bus stop", style="Casual",
+        )
+        assert "Alice" in msgs[0]["content"]
+        assert "Bob" in msgs[0]["content"]
+
+
+class TestBuildContinuationMessages:
+    def test_returns_two_messages(self):
+        from conversation_dataset_generator.prompts import build_continuation_messages
+        prior_turns = [
+            {"from": "human", "value": "Hello", "speaker_name": "Alice"},
+            {"from": "gpt", "value": "Hi there", "speaker_name": "Bob"},
+        ]
+        msgs = build_continuation_messages(
+            personas=[("Alice", "Friendly"), ("Bob", "Grumpy")],
+            prior_turns=prior_turns,
+            topic="Greeting", scenario="Online", style="Casual",
+        )
+        assert len(msgs) == 2
+        assert msgs[0]["role"] == "system"
+        assert msgs[1]["role"] == "user"
+
+    def test_prior_turns_in_prompt(self):
+        from conversation_dataset_generator.prompts import build_continuation_messages
+        prior_turns = [
+            {"from": "human", "value": "What about quantum?", "speaker_name": "Alice"},
+        ]
+        msgs = build_continuation_messages(
+            personas=[("Alice", "Scientist"), ("Bob", "Student")],
+            prior_turns=prior_turns,
+            topic="Physics", scenario="Lab", style="Educational",
+        )
+        assert "What about quantum?" in msgs[1]["content"]
