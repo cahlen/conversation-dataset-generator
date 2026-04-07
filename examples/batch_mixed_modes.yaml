@@ -12,7 +12,6 @@ runs:
   - id: "ai_engineer_debate_variation"
     output_file: "ai_engineer_debate.jsonl"
     num_examples: 7
-    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
     load_in_4bit: true
     enable_variation: true
     fixed_personas:
@@ -31,7 +30,6 @@ runs:
   - id: "scifi_manual_no_upload"
     output_file: "scifi_lv426_manual.jsonl"
     num_examples: 3 # Manual mode generates N examples of the exact same topic/scenario
-    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
     load_in_4bit: true
     manual_args:
       persona1: "Captain Eva Rostova"
@@ -48,7 +46,6 @@ runs:
   - id: "seinfeld_brief_llama3_70b"
     output_file: "seinfeld_kramer_scheme_brief.jsonl"
     num_examples: 6
-    model_id: "meta-llama/Meta-Llama-3-8B-Instruct" # Changed from Llama-3-70B
     load_in_4bit: true # Can still use 4-bit for 8B
     creative_brief: "A classic Seinfeldian conversation. Jerry observes the absurdity of airline boarding group procedures, Kramer bursts in with a convoluted scheme related to claiming lost luggage that isn't his."
     # No upload_repo specified for this run
@@ -57,7 +54,6 @@ runs:
   - id: "curie_einstein_brief_search"
     output_file: "curie_einstein_brief.jsonl"
     num_examples: 5
-    model_id: "meta-llama/Meta-Llama-3-8B-Instruct" # Changed from Mistral
     load_in_4bit: true
     creative_brief: "Marie Curie and Albert Einstein discuss the ethics and societal impact of their groundbreaking scientific discoveries over tea in 1920s Brussels."
     persona1_search_term: "Marie Curie scientist personality Nobel Prize radioactivity research"
@@ -68,7 +64,6 @@ runs:
   - id: "seinfeld_brief_run"
     output_file: "seinfeld_tech_brief.jsonl"
     num_examples: 5
-    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
     load_in_4bit: true
     creative_brief: "A classic Seinfeldian conversation. Jerry makes an absurd observation about modern technology, George escalates the complaint neurotically."
 
@@ -76,7 +71,6 @@ runs:
   - id: "wizard_knight_variation_run"
     output_file: "wizard_knight_socks.jsonl"
     num_examples: 8
-    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
     load_in_4bit: true
     enable_variation: true # Enable variation for this run
     fixed_personas:
@@ -94,7 +88,6 @@ runs:
   - id: "scifi_manual_run"
     output_file: "scifi_odyssey_artifact_manual.jsonl"
     num_examples: 4 # Generates 4 examples of the *exact same* topic/scenario
-    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
     load_in_4bit: true
     manual_args:
       persona1: "Captain Eva Rostova"

@@ -11,7 +11,6 @@ runs:
     output_file: "jagger_ozzy_variation.jsonl"
     upload_repo: "cahlen/cdg-jagger-ozzy-variation-ex13" # UPDATED repo name & number
     num_examples: 100 # INCREASED examples
-    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
     load_in_4bit: true
     enable_variation: true
     fixed_personas:
@@ -30,7 +29,6 @@ runs:
     output_file: "ramsay_stewart_brief.jsonl"
     upload_repo: "cahlen/cdg-ramsay-stewart-critique-ex14" # UPDATED repo name & number
     num_examples: 100 # INCREASED examples
-    model_id: "meta-llama/Meta-Llama-3-8B-Instruct" 
     load_in_4bit: true
     creative_brief: "Gordon Ramsay and Martha Stewart politely but passive-aggressively critique each other's signature dishes during a charity gala dinner."
     persona1_search_term: "Gordon Ramsay personality TV chef Hell's Kitchen insults perfectionist"
@@ -41,7 +39,6 @@ runs:
     output_file: "cobain_vedder_brief.jsonl"
     upload_repo: "cahlen/cdg-cobain-vedder-brief-ex15" # UPDATED repo name & number
     num_examples: 100 # INCREASED examples
-    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
     load_in_4bit: false # Using default bf16/fp16 precision
     creative_brief: "Kurt Cobain and Eddie Vedder have a quiet, introspective conversation backstage at Lollapalooza '92 about the pressures of sudden fame, authenticity, and the Seattle grunge scene."
 
@@ -50,7 +47,6 @@ runs:
     output_file: "rock_hart_manual.jsonl"
     upload_repo: "cahlen/cdg-rock-hart-manual-ex16" # UPDATED repo name & number
     num_examples: 100 # INCREASED examples
-    model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
     load_in_4bit: true
     manual_args:
       persona1: "Dwayne 'The Rock' Johnson"
