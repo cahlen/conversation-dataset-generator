@@ -100,7 +100,48 @@ python generate.py \
   --num-examples 100 --output-file avengers_random.jsonl
 ```
 
-Add `--enable-variation` to also vary topics per conversation.
+Add `--enable-variation` to also vary topics per conversation. Use `--group-size 3` for 3-way conversations.
+
+### Multi-Speaker (3+ Personas)
+
+Use `--persona` (repeatable) for inline definitions or `--personas` for a YAML file:
+
+```bash
+# Inline
+python generate.py \
+  --persona "Iron Man" "Genius billionaire with rapid-fire wit" \
+  --persona "Captain America" "Principled, earnest, old-fashioned" \
+  --persona "Thor" "Boisterous god with Shakespearean formality" \
+  --topic "who pays for the pizza" --scenario "Avengers break room" --style "comedic argument" \
+  --num-examples 10 --output-file avengers_pizza.jsonl
+
+# From YAML file
+python generate.py \
+  --personas my_characters.yaml \
+  --topic "planning a heist" --scenario "warehouse" --style "tense thriller" \
+  --num-examples 5 --output-file heist.jsonl
+```
+
+Personas YAML format:
+```yaml
+personas:
+  - name: "Iron Man"
+    description: "Genius billionaire with rapid-fire wit"
+  - name: "Captain America"
+    description: "Principled, earnest, old-fashioned"
+```
+
+### Continuing Conversations
+
+Extend an existing conversation with more turns:
+
+```bash
+# Continue the last conversation in a file
+python generate.py --continue-from conversations.jsonl --output-file more.jsonl
+
+# Continue a specific conversation
+python generate.py --continue-from conversations.jsonl --conversation-id 5 --output-file more.jsonl
+```
 
 ### Batch Generation
 
@@ -154,6 +195,22 @@ See `examples/` for sample batch configs.
 | `--character-pool FILE` | YAML file with character names |
 | `--persona-desc-pool FILE` | YAML file with character descriptions |
 
+### Multi-Speaker
+
+| Flag | Description |
+|---|---|
+| `--persona NAME DESC` | Add a persona (repeatable) |
+| `--personas FILE` | YAML file with personas list |
+| `--train-speaker NAME` | Assign this speaker the "gpt" role |
+| `--group-size N` | Characters per conversation in random pairings (default: 2) |
+
+### Continue Conversation
+
+| Flag | Description |
+|---|---|
+| `--continue-from FILE` | Continue from an existing JSONL file |
+| `--conversation-id N` | Specific conversation to continue (default: last) |
+
 ### Web Search (Creative Brief)
 
 | Flag | Description |
@@ -172,7 +229,7 @@ See `examples/` for sample batch configs.
 | `--load-in-4bit` | off | Enable 4-bit quantization (requires bitsandbytes) |
 | `--upload-to-hub REPO` | — | Upload dataset to HuggingFace Hub |
 | `--force-upload` | off | Skip upload confirmation |
-| `--role-mapping MAP` | `p1=human,p2=gpt` | Map personas to ShareGPT roles |
+| `--role-mapping MAP` | first=human, rest=gpt | Map speaker names to roles (e.g., `"Alice=human,Bob=gpt"`) |
 
 ## Output Format
 
@@ -190,6 +247,35 @@ Each line in the JSONL output is one conversation turn:
   "include_points": "",
   "content": "So, you're telling me pineapple on pizza is the ultimate topping?"
 }
+```
+
+## Role Mapping for Training
+
+The `role` field in the output determines how training frameworks interpret each turn:
+- `"human"` = input/context (the model sees this)
+- `"gpt"` = target (the model learns to generate this)
+
+**Default:** First persona is `"human"`, all others are `"gpt"`.
+
+**Train a specific character:** Use `--train-speaker` to make one character the `"gpt"` role:
+
+```bash
+# Train the model to BE Captain America
+python generate.py \
+  --persona "Iron Man" "Genius billionaire" \
+  --persona "Captain America" "Principled leader" \
+  --persona "Thor" "Boisterous god" \
+  --train-speaker "Captain America" \
+  --topic "mission planning" --scenario "war room" --style "serious" \
+  --output-file cap_training.jsonl
+```
+
+In the output, Captain America's turns will have `"role": "gpt"` and everyone else will have `"role": "human"`. The `speaker_name` field always stores the actual character name regardless.
+
+**Fine-grained control:** Use `--role-mapping` for custom assignments:
+
+```bash
+--role-mapping "Iron Man=human,Captain America=gpt,Thor=human"
 ```
 
 ## For Contributors
@@ -212,7 +298,7 @@ Each line in the JSONL output is one conversation turn:
 
 ```bash
 pip install -r requirements-dev.txt
-pytest tests/ -v                    # all 81 tests
+pytest tests/ -v                    # all 121 tests
 pytest tests/test_parsing.py -v     # one module
 ```
 
