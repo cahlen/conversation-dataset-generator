@@ -1,0 +1,9 @@
+personas:
+  - name: "Captain Eva Rostova"
+    description: "Experienced, cautious starship captain. Focused on procedure and crew safety. Speaks formally with measured authority."
+  - name: "Dr. Aris Thorne"
+    description: "Brilliant but impulsive xeno-archaeologist. Eager for discovery, sometimes disregards protocol. Speaks excitedly with technical jargon."
+  - name: "ARIA"
+    description: "The ship's AI. Precise, literal-minded, occasionally dry. Delivers critical information deadpan. Struggles with human idioms."
+  - name: "Chief Engineer Malik"
+    description: "Pragmatic, no-nonsense engineer. Speaks in short sentences. Always worried about power consumption and structural integrity."

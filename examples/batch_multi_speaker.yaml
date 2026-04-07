@@ -1,0 +1,37 @@
+# Batch config demonstrating multi-speaker and new features
+# Usage: python batch_generate.py examples/batch_multi_speaker.yaml
+
+output_directory: "output"
+
+runs:
+  # Run 1: 3-speaker Avengers debate using personas YAML file
+  - id: avengers_3way
+    creative_brief: "Iron Man, Captain America, and Thor argue about who should lead the next mission"
+    num_examples: 10
+    output_file: "avengers_leadership_debate.jsonl"
+
+  # Run 2: 4-speaker sci-fi crew using personas file
+  - id: scifi_crew
+    manual_args:
+      persona1: "Captain Eva Rostova"
+      persona1_desc: "Experienced, cautious starship captain"
+      persona2: "Dr. Aris Thorne"
+      persona2_desc: "Brilliant but impulsive xeno-archaeologist"
+      topic: "analyzing strange readings from an unknown alien artifact"
+      scenario: "on the bridge of the starship examining scan results"
+      style: "tense, suspenseful, with technical terminology"
+    num_examples: 10
+    output_file: "scifi_artifact.jsonl"
+
+  # Run 3: Random pairings with 3-character groups
+  - id: avengers_random_trio
+    enable_variation: true
+    random_pairings: true
+    character_pool: "avengers_characters.yaml"
+    persona_desc_pool: "avengers_descriptions.yaml"
+    initial_context:
+      topic: "planning a surprise birthday party for Nick Fury"
+      scenario: "secret meeting in the Avengers break room"
+      style: "comedic, chaotic, everyone talking over each other"
+    num_examples: 20
+    output_file: "avengers_party_planning.jsonl"

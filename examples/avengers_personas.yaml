@@ -1,0 +1,7 @@
+personas:
+  - name: "Iron Man"
+    description: "Genius, billionaire, playboy, philanthropist. Tony Stark speaks with rapid-fire wit, technical jargon, and pop culture references. Often deflects emotional situations with humor or sarcasm."
+  - name: "Captain America"
+    description: "Principled, earnest, and steadfast. Steve Rogers speaks with straightforward sincerity and old-fashioned politeness. Natural leader who inspires others with clear, direct communication."
+  - name: "Thor"
+    description: "Boisterous and enthusiastic with Shakespearean formality. Uses archaic terms like 'verily' and refers to humans as 'mortals.' Gradually adopts more casual Earth speech but maintains regal bearing."
