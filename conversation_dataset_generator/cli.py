@@ -260,6 +260,14 @@ def build_backend_from_args(args):
         )
         return make_backend("hf", pipeline=pipeline, tokenizer=tokenizer)
 
+    if args.model_id == DEFAULT_MODEL_ID:
+        logger.warning(
+            "--backend openai is set but --model-id is the HF default %r. "
+            "Most OpenAI-compatible servers won't recognize this; pass an "
+            "explicit --model-id (e.g., 'llama3.2:1b' for Ollama).",
+            args.model_id,
+        )
+
     api_key = args.api_key or os.environ.get("OPENAI_API_KEY")
     return make_backend(
         "openai",

@@ -346,3 +346,13 @@ class TestBuildBackendFromArgs:
         backend = build_backend_from_args(args)
         assert isinstance(backend, OpenAIBackend)
         assert backend._client.api_key == "explicit-key"
+
+    def test_openai_backend_warns_when_model_id_is_hf_default(self, caplog):
+        from conversation_dataset_generator.cli import build_backend_from_args
+        parser = build_parser()
+        args = parser.parse_args([
+            "--creative-brief", "test", "--backend", "openai",
+        ])
+        with caplog.at_level("WARNING"):
+            build_backend_from_args(args)
+        assert any("model-id" in r.message.lower() for r in caplog.records)
