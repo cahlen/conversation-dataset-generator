@@ -217,3 +217,27 @@ class TestMakeBackend:
         from conversation_dataset_generator.backend import make_backend
         with pytest.raises(ValueError, match="unknown backend"):
             make_backend("nope")
+
+
+class TestExtractGeneratedTextHelper:
+    """Direct unit tests for _extract_generated_text helper.
+
+    Covers the no-prefix branch which HFBackend doesn't exercise (its mock
+    pipeline always returns prompt_prefix + generated, so the prefix is always
+    present).
+    """
+
+    def test_strips_prompt_when_present(self):
+        from conversation_dataset_generator.backend import _extract_generated_text
+        result = _extract_generated_text("PROMPT:Hello world", "PROMPT:")
+        assert result == "Hello world"
+
+    def test_returns_full_output_when_prompt_missing(self):
+        from conversation_dataset_generator.backend import _extract_generated_text
+        result = _extract_generated_text("Hello world", "DIFFERENT_PROMPT:")
+        assert result == "Hello world"
+
+    def test_returns_none_when_empty_after_strip(self):
+        from conversation_dataset_generator.backend import _extract_generated_text
+        result = _extract_generated_text("PROMPT:   ", "PROMPT:")
+        assert result is None

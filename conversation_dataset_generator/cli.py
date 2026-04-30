@@ -259,6 +259,8 @@ def main():
     text_generator, tokenizer = load_model_and_pipeline(
         model_id=args.model_id, load_in_4bit=args.load_in_4bit,
     )
+    from conversation_dataset_generator.backend import HFBackend
+    backend = HFBackend(text_generator, tokenizer)
 
     # --- Imports ---
     from conversation_dataset_generator.generation import (
@@ -313,7 +315,7 @@ def main():
                 personas=personas, prior_turns=conv_data["turns"],
                 topic=conv_data["topic"], scenario=conv_data["scenario"],
                 style=conv_data["style"],
-                generator_pipeline=text_generator, tokenizer=tokenizer,
+                backend=backend,
                 max_new_tokens=args.max_new_tokens, role_mapping=role_mapping,
             )
             total_llm_time += time.monotonic() - start
@@ -332,7 +334,7 @@ def main():
         if mode == "brief":
             variation_enabled = True
             generated = generate_args_from_brief_safe(
-                args.creative_brief, text_generator, tokenizer,
+                args.creative_brief, backend,
                 args.persona1_search_term, args.persona2_search_term,
             )
             if generated is None:
@@ -438,7 +440,7 @@ def main():
                     persona2=p2_name, persona2_desc=p2_desc,
                     initial_topic=initial_topic, initial_scenario=initial_scenario,
                     initial_style=initial_style,
-                    generator_pipeline=text_generator, tokenizer=tokenizer,
+                    backend=backend,
                     original_brief=args.creative_brief if mode == "brief" else None,
                 )
                 if variation:
@@ -451,7 +453,7 @@ def main():
             turns = generate_conversation(
                 topic=current_topic, personas=personas_for_this_conv,
                 scenario=current_scenario, style=current_style,
-                generator_pipeline=text_generator, tokenizer=tokenizer,
+                backend=backend,
                 max_new_tokens=args.max_new_tokens,
                 include_points=current_include_points,
                 role_mapping=role_mapping,
