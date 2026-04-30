@@ -49,12 +49,12 @@ python webapp.py
 ## Testing
 
 ```bash
-pytest tests/ -v                                          # all 188 tests
+pytest tests/ -v                                          # all 206 tests
 pytest tests/test_parsing.py -v                           # one module
 pytest tests/test_parsing.py::TestParseVariationOutput -v # one class
 ```
 
-188 tests across 8 test files. No GPU required — LLM calls and embeddings are mocked.
+206 tests across 8 test files. No GPU required — LLM calls and embeddings are mocked.
 
 ## Architecture
 
@@ -88,6 +88,8 @@ pytest tests/test_parsing.py::TestParseVariationOutput -v # one class
 
 - Default model: `Qwen/Qwen2.5-7B-Instruct`
 - Backends: `--backend hf` (default, local transformers) or `--backend openai` (OpenAI-compatible HTTP server). For openai, set `--api-base-url` (LM Studio default `http://localhost:1234/v1`, Ollama `http://localhost:11434/v1`) and optionally `--api-key`.
+- Dedup: `--dedup-threshold FLOAT` drops generated conversations with cosine similarity > threshold to any prior in the run (sentence-transformers `all-MiniLM-L6-v2`).
+- Vendi Score: `evaluation.py` reports the effective number of distinct conversations from the eigenvalue entropy of the embedding similarity matrix; closer to N = more diverse.
 - Default max tokens: 4096
 - N-speaker support: `--persona` (repeatable) or `--personas` YAML file
 - Role mapping: `--train-speaker "Name"` (that speaker = gpt, rest = human) or `--role-mapping "Name1=human,Name2=gpt"`

@@ -233,6 +233,7 @@ See `examples/` for sample batch configs.
 | `--upload-to-hub REPO` | — | Upload dataset to HuggingFace Hub |
 | `--force-upload` | off | Skip upload confirmation |
 | `--role-mapping MAP` | first=human, rest=gpt | Map speaker names to roles (e.g., `"Alice=human,Bob=gpt"`) |
+| `--dedup-threshold FLOAT` | off | Drop generated conversations with cosine similarity > this value to any prior. Typical range: 0.85–0.97. Requires `sentence-transformers`. |
 
 ## Output Format
 
@@ -304,6 +305,7 @@ Diversity:
   Distinct-1: 0.42 | Distinct-2: 0.81 | Distinct-3: 0.91
   Topic diversity: 0.72 (0=identical, 1=unrelated)
   Vocabulary richness (TTR): 0.68
+  Vendi Score: 87.4 / 100 (effective distinct conversations; closer to N = more diverse)
 
 Coherence:
   Turn-to-turn similarity: 0.47 (target: 0.3-0.6)
@@ -319,6 +321,7 @@ Speaker Distinctiveness:
 - **Turn coherence** — how well consecutive turns relate. Sweet spot: 0.3-0.6.
 - **Self-repetition** — fraction of near-duplicate turns within conversations.
 - **Speaker distinctiveness** — how different each speaker's language is from others.
+- **Vendi Score** — effective number of distinct conversations, computed from the eigenvalue entropy of the conversation-embedding similarity matrix. Range is `[1, N]` where `N` is the number of conversations: `1` means everything collapses to one effective example, `N` means every conversation is mutually distinct. Less sensitive than Distinct-N to surface-level paraphrases.
 
 Options:
 ```bash
