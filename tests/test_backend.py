@@ -86,3 +86,108 @@ class TestHFBackend:
         backend = HFBackend(pipeline, tokenizer)
         result = backend.complete([{"role": "user", "content": "x"}])
         assert result is None
+
+
+def _make_openai_client(content: str | None = "Hello world"):
+    """Build a mock openai.OpenAI-shaped client whose chat.completions.create
+    returns a single choice with the given content."""
+    client = MagicMock()
+    completion = MagicMock()
+    completion.choices = [MagicMock(message=MagicMock(content=content))]
+    client.chat.completions.create.return_value = completion
+    return client
+
+
+class TestOpenAIBackend:
+    def test_returns_content_on_success(self):
+        from conversation_dataset_generator.backend import OpenAIBackend
+        client = _make_openai_client(content="Hello world")
+        backend = OpenAIBackend(
+            model_id="qwen-7b",
+            base_url="http://localhost:1234/v1",
+            api_key="test",
+            client=client,
+        )
+        result = backend.complete([{"role": "user", "content": "hi"}])
+        assert result == "Hello world"
+
+    def test_passes_messages_and_model(self):
+        from conversation_dataset_generator.backend import OpenAIBackend
+        client = _make_openai_client()
+        backend = OpenAIBackend(
+            model_id="qwen-7b", base_url="x", api_key="y", client=client,
+        )
+        msgs = [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}]
+        backend.complete(msgs)
+        call = client.chat.completions.create.call_args
+        assert call.kwargs["model"] == "qwen-7b"
+        assert call.kwargs["messages"] == msgs
+
+    def test_translates_max_new_tokens_to_max_tokens(self):
+        from conversation_dataset_generator.backend import OpenAIBackend
+        client = _make_openai_client()
+        backend = OpenAIBackend(
+            model_id="m", base_url="x", api_key="y", client=client,
+        )
+        backend.complete(
+            [{"role": "user", "content": "x"}],
+            max_new_tokens=777, temperature=0.3, top_p=0.6,
+        )
+        kwargs = client.chat.completions.create.call_args.kwargs
+        assert kwargs["max_tokens"] == 777
+        assert kwargs["temperature"] == 0.3
+        assert kwargs["top_p"] == 0.6
+        assert "max_new_tokens" not in kwargs
+
+    def test_returns_none_on_empty_content(self):
+        from conversation_dataset_generator.backend import OpenAIBackend
+        client = _make_openai_client(content="")
+        backend = OpenAIBackend(
+            model_id="m", base_url="x", api_key="y", client=client,
+        )
+        result = backend.complete([{"role": "user", "content": "x"}])
+        assert result is None
+
+    def test_returns_none_on_none_content(self):
+        from conversation_dataset_generator.backend import OpenAIBackend
+        client = _make_openai_client(content=None)
+        backend = OpenAIBackend(
+            model_id="m", base_url="x", api_key="y", client=client,
+        )
+        result = backend.complete([{"role": "user", "content": "x"}])
+        assert result is None
+
+    def test_returns_none_on_connection_error(self):
+        import openai
+        from conversation_dataset_generator.backend import OpenAIBackend
+        client = MagicMock()
+        client.chat.completions.create.side_effect = openai.APIConnectionError(
+            request=MagicMock()
+        )
+        backend = OpenAIBackend(
+            model_id="m", base_url="x", api_key="y", client=client,
+        )
+        result = backend.complete([{"role": "user", "content": "x"}])
+        assert result is None
+
+    def test_returns_none_on_generic_exception(self):
+        from conversation_dataset_generator.backend import OpenAIBackend
+        client = MagicMock()
+        client.chat.completions.create.side_effect = RuntimeError("boom")
+        backend = OpenAIBackend(
+            model_id="m", base_url="x", api_key="y", client=client,
+        )
+        result = backend.complete([{"role": "user", "content": "x"}])
+        assert result is None
+
+    def test_returns_none_on_no_choices(self):
+        from conversation_dataset_generator.backend import OpenAIBackend
+        client = MagicMock()
+        completion = MagicMock()
+        completion.choices = []
+        client.chat.completions.create.return_value = completion
+        backend = OpenAIBackend(
+            model_id="m", base_url="x", api_key="y", client=client,
+        )
+        result = backend.complete([{"role": "user", "content": "x"}])
+        assert result is None

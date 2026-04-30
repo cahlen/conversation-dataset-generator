@@ -78,3 +78,59 @@ class HFBackend:
 
         raw = outputs[0].get("generated_text", "")
         return _extract_generated_text(raw, prompt_text)
+
+
+class OpenAIBackend:
+    """ChatBackend backed by an OpenAI-compatible HTTP API.
+
+    Works with the real OpenAI API as well as LM Studio, Ollama (`/v1` shim),
+    vLLM, TGI, OpenRouter — anything that speaks `chat.completions`.
+
+    Pass ``client`` to inject a pre-built or mocked client (used in tests);
+    otherwise the constructor creates one from ``base_url`` + ``api_key``.
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        base_url: str,
+        api_key: str | None = None,
+        *,
+        client=None,
+    ):
+        self.model_id = model_id
+        if client is not None:
+            self._client = client
+        else:
+            from openai import OpenAI
+            self._client = OpenAI(base_url=base_url, api_key=api_key or "not-needed")
+
+    def complete(
+        self,
+        messages: list[dict],
+        *,
+        max_new_tokens: int = 512,
+        temperature: float = 0.8,
+        top_p: float = 0.95,
+    ) -> str | None:
+        try:
+            completion = self._client.chat.completions.create(
+                model=self.model_id,
+                messages=messages,
+                max_tokens=max_new_tokens,
+                temperature=temperature,
+                top_p=top_p,
+            )
+        except Exception as exc:
+            logger.error("OpenAI chat.completions call failed: %s", exc)
+            return None
+
+        if not completion.choices:
+            logger.warning("OpenAI response had no choices.")
+            return None
+
+        content = completion.choices[0].message.content
+        if not content:
+            return None
+        content = content.strip()
+        return content if content else None
