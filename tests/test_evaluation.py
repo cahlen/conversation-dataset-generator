@@ -250,3 +250,115 @@ class TestFormatJson:
         output = format_json(results)
         parsed = json_mod.loads(output)
         assert parsed["num_conversations"] == 5
+
+
+class TestComputeVendiScore:
+    """Vendi Score: effective number of distinct conversations.
+
+    VS = exp(H(eigenvalues / n)) where eigenvalues come from the L2-normalized
+    cosine-similarity Gram matrix. Range is [1, n]: 1 means all items are
+    identical (one effective example), n means all items are mutually
+    orthogonal (n effective examples).
+    """
+
+    def test_identical_items_give_score_one(self):
+        from conversation_dataset_generator.evaluation import compute_vendi_score
+        identical_emb = np.array([1.0, 0.0, 0.0])
+        model = MagicMock()
+        model.encode.return_value = np.array([identical_emb, identical_emb, identical_emb])
+        convs = [
+            {"turns": [{"content": "x"}]},
+            {"turns": [{"content": "x"}]},
+            {"turns": [{"content": "x"}]},
+        ]
+        score = compute_vendi_score(convs, model)
+        assert score == pytest.approx(1.0, abs=1e-4)
+
+    def test_orthogonal_items_give_score_n(self):
+        from conversation_dataset_generator.evaluation import compute_vendi_score
+        model = MagicMock()
+        model.encode.return_value = np.array([
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ])
+        convs = [{"turns": [{"content": f"x{i}"}]} for i in range(3)]
+        score = compute_vendi_score(convs, model)
+        assert score == pytest.approx(3.0, abs=1e-4)
+
+    def test_returns_one_for_single_conversation(self):
+        from conversation_dataset_generator.evaluation import compute_vendi_score
+        model = MagicMock()
+        convs = [{"turns": [{"content": "only"}]}]
+        score = compute_vendi_score(convs, model)
+        assert score == pytest.approx(1.0)
+
+    def test_returns_zero_for_empty_input(self):
+        from conversation_dataset_generator.evaluation import compute_vendi_score
+        model = MagicMock()
+        score = compute_vendi_score([], model)
+        assert score == 0.0
+
+    def test_two_identical_two_orthogonal_is_between_one_and_n(self):
+        from conversation_dataset_generator.evaluation import compute_vendi_score
+        model = MagicMock()
+        model.encode.return_value = np.array([
+            [1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],  # duplicate of first
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ])
+        convs = [{"turns": [{"content": f"x{i}"}]} for i in range(4)]
+        score = compute_vendi_score(convs, model)
+        # 4 items but one is a duplicate — effective diversity is between 3 and 4
+        assert 2.5 < score < 3.5
+
+    def test_concatenates_all_turns_for_embedding(self):
+        from conversation_dataset_generator.evaluation import compute_vendi_score
+        model = MagicMock()
+        model.encode.return_value = np.array([[1.0, 0.0], [0.0, 1.0]])
+        convs = [
+            {"turns": [{"content": "hello"}, {"content": "world"}]},
+            {"turns": [{"content": "foo"}, {"content": "bar"}]},
+        ]
+        compute_vendi_score(convs, model)
+        # The model should have been called with concatenated turn texts
+        call_arg = model.encode.call_args[0][0]
+        assert any("hello" in t and "world" in t for t in call_arg)
+        assert any("foo" in t and "bar" in t for t in call_arg)
+
+
+class TestIsNearDuplicate:
+    """Cosine-similarity duplicate detection helper used by the generation loop."""
+
+    def test_returns_false_when_no_priors(self):
+        from conversation_dataset_generator.evaluation import is_near_duplicate
+        new = np.array([1.0, 0.0, 0.0])
+        assert is_near_duplicate(new, [], threshold=0.95) is False
+
+    def test_returns_true_when_above_threshold(self):
+        from conversation_dataset_generator.evaluation import is_near_duplicate
+        new = np.array([1.0, 0.0, 0.0])
+        priors = [np.array([0.99, 0.01, 0.0])]
+        assert is_near_duplicate(new, priors, threshold=0.95) is True
+
+    def test_returns_false_when_below_threshold(self):
+        from conversation_dataset_generator.evaluation import is_near_duplicate
+        new = np.array([1.0, 0.0, 0.0])
+        priors = [np.array([0.5, 0.5, 0.0])]
+        assert is_near_duplicate(new, priors, threshold=0.95) is False
+
+    def test_uses_max_similarity_across_priors(self):
+        from conversation_dataset_generator.evaluation import is_near_duplicate
+        new = np.array([1.0, 0.0, 0.0])
+        priors = [
+            np.array([0.0, 1.0, 0.0]),  # orthogonal — sim 0
+            np.array([0.99, 0.01, 0.0]),  # near duplicate — sim ~1
+        ]
+        assert is_near_duplicate(new, priors, threshold=0.95) is True
+
+    def test_handles_zero_vectors(self):
+        from conversation_dataset_generator.evaluation import is_near_duplicate
+        new = np.array([0.0, 0.0, 0.0])
+        priors = [np.array([1.0, 0.0, 0.0])]
+        assert is_near_duplicate(new, priors, threshold=0.95) is False

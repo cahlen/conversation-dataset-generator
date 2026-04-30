@@ -153,6 +153,58 @@ def compute_self_repetition(conversations: list[dict], model, threshold: float =
     return repeated_turns / total_turns
 
 
+def compute_vendi_score(conversations: list[dict], model) -> float:
+    """Effective number of distinct conversations.
+
+    VS = exp(-Σ p_i log p_i) where p_i are eigenvalues of the L2-normalized
+    cosine-similarity Gram matrix divided by N. Range is [1, N]: 1 = all
+    items identical, N = all items mutually orthogonal. Reference:
+    Friedman & Dieng, "The Vendi Score" (2023). Embeds each conversation
+    by concatenating all of its turn contents.
+    """
+    if not conversations:
+        return 0.0
+    if len(conversations) < 2:
+        return 1.0
+
+    texts = [
+        " ".join(t["content"] for t in c["turns"])
+        for c in conversations
+    ]
+    embeddings = np.asarray(model.encode(texts, show_progress_bar=False), dtype=float)
+
+    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+    norms[norms == 0] = 1.0
+    normalized = embeddings / norms
+
+    n = len(normalized)
+    K = normalized @ normalized.T
+    K_norm = K / n
+
+    eigenvalues = np.linalg.eigvalsh(K_norm)
+    eigenvalues = np.maximum(eigenvalues, 0.0)
+
+    nonzero = eigenvalues[eigenvalues > 1e-12]
+    if len(nonzero) == 0:
+        return 1.0
+    entropy = -np.sum(nonzero * np.log(nonzero))
+    return float(np.exp(entropy))
+
+
+def is_near_duplicate(
+    new_embedding: np.ndarray,
+    prior_embeddings: list,
+    threshold: float = 0.95,
+) -> bool:
+    """True if max cosine similarity between new and any prior exceeds threshold."""
+    if not prior_embeddings:
+        return False
+    for prior in prior_embeddings:
+        if _cosine_similarity(new_embedding, prior) > threshold:
+            return True
+    return False
+
+
 def compute_speaker_distinctiveness(conversations: list[dict], model) -> float:
     speaker_texts = {}
     for c in conversations:
@@ -203,6 +255,7 @@ def run_evaluation(
         results["turn_coherence"] = compute_turn_coherence(conversations, model)
         results["self_repetition_rate"] = compute_self_repetition(conversations, model)
         results["speaker_distinctiveness"] = compute_speaker_distinctiveness(conversations, model)
+        results["vendi_score"] = compute_vendi_score(conversations, model)
 
     return results
 
@@ -234,6 +287,12 @@ def format_report(results: dict) -> str:
     if "topic_diversity" in results:
         lines.append(f"  Topic diversity: {results['topic_diversity']:.2f} (0=identical, 1=unrelated)")
     lines.append(f"  Vocabulary richness (TTR): {results['vocabulary_richness']:.2f}")
+    if "vendi_score" in results:
+        n = results["num_conversations"]
+        lines.append(
+            f"  Vendi Score: {results['vendi_score']:.2f} / {n} "
+            f"(effective distinct conversations; closer to N = more diverse)"
+        )
     lines.append("")
 
     if "turn_coherence" in results:
