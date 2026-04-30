@@ -449,6 +449,32 @@ body { background: var(--paper) !important; color: var(--ink) !important; font-f
     padding-top: 8px;
     margin-top: 6px;
 }
+#cdg-metrics .recs {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+}
+#cdg-metrics .recs-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--accent);
+    margin-bottom: 8px;
+}
+#cdg-metrics .recs ul {
+    margin: 0;
+    padding-left: 18px;
+    font-family: var(--sans);
+    font-size: 13px;
+    color: var(--ink);
+}
+#cdg-metrics .recs li {
+    margin: 4px 0;
+    line-height: 1.5;
+}
 
 /* Preview turns: editorial dialogue */
 #cdg-preview { font-size: 14px; line-height: 1.7; }
@@ -592,6 +618,149 @@ def _format_preview(conversations: list, limit: int = 3) -> str:
     return "\n\n".join(parts)
 
 
+PRESETS = {
+    "— Custom —": None,
+    "Sherlock & Watson · AI surveillance": {
+        "persona1": "Sherlock Holmes",
+        "persona1_desc": "A coldly logical Victorian detective with cutting wit. Speaks in clipped, deductive observations.",
+        "persona2": "Dr. Watson",
+        "persona2_desc": "A loyal, slightly bewildered army doctor and trusted companion. Asks the questions readers would ask.",
+        "extra_personas": "",
+        "topic": "the ethics of AI surveillance",
+        "scenario": "221B Baker Street, late evening",
+        "style": "Tense and dramatic with period-appropriate diction",
+    },
+    "Avengers · planetary threat": {
+        "persona1": "Iron Man",
+        "persona1_desc": "Genius billionaire, rapid-fire wit, deflects emotion with humor. Heavy on technical jargon and pop-culture references.",
+        "persona2": "Captain America",
+        "persona2_desc": "Principled, earnest, old-fashioned politeness. Natural leader who inspires with clear, direct speech.",
+        "extra_personas": "Thor | Boisterous Shakespearean formality. Uses 'verily' and refers to humans as 'mortals'.",
+        "topic": "how to confront a planetary threat without destroying the city",
+        "scenario": "the Avengers Tower conference room",
+        "style": "Tense and dramatic, with light banter",
+    },
+    "Sci-fi crew · anomaly on the bridge": {
+        "persona1": "Captain Eva Rostova",
+        "persona1_desc": "Experienced, cautious starship captain. Focused on procedure and crew safety. Speaks formally with measured authority.",
+        "persona2": "Dr. Aris Thorne",
+        "persona2_desc": "Brilliant but impulsive xeno-archaeologist. Eager for discovery, sometimes disregards protocol. Speaks excitedly with technical jargon.",
+        "extra_personas": (
+            "ARIA | The ship's AI. Precise, literal-minded, occasionally dry. Struggles with human idioms.\n"
+            "Chief Engineer Malik | Pragmatic, no-nonsense engineer. Short sentences. Worried about power consumption."
+        ),
+        "topic": "an unidentified anomaly approaching the ship",
+        "scenario": "the bridge of the starship Pioneer",
+        "style": "Procedural and tense, with technical jargon",
+    },
+    "Code review · senior & intern": {
+        "persona1": "Ada",
+        "persona1_desc": "A pragmatic senior engineer. Explains tradeoffs clearly without condescension. Uses concrete examples.",
+        "persona2": "Lin",
+        "persona2_desc": "An eager intern asking great clarifying questions. Comfortable saying 'I don't know'.",
+        "extra_personas": "",
+        "topic": "why monoliths beat microservices for small teams",
+        "scenario": "a code review session over a shared screen",
+        "style": "Direct and educational",
+    },
+    "Chefs · is umami overrated": {
+        "persona1": "Maya",
+        "persona1_desc": "An enthusiastic chef obsessed with umami. Uses food metaphors constantly.",
+        "persona2": "Diego",
+        "persona2_desc": "A skeptical food scientist. Demands evidence. Slightly contrarian.",
+        "extra_personas": "",
+        "topic": "whether umami is overrated",
+        "scenario": "a steamy professional kitchen during prep",
+        "style": "Spirited and friendly with sharp disagreement",
+    },
+}
+
+
+def _apply_preset(preset_name: str):
+    """Return a tuple of values for (persona1, persona1_desc, persona2, persona2_desc,
+    extra_personas, topic, scenario, style). Returns 8 gr.update no-ops when Custom."""
+    p = PRESETS.get(preset_name)
+    if not p:
+        return tuple(gr.update() for _ in range(8))
+    return (
+        p.get("persona1", ""),
+        p.get("persona1_desc", ""),
+        p.get("persona2", ""),
+        p.get("persona2_desc", ""),
+        p.get("extra_personas", ""),
+        p.get("topic", ""),
+        p.get("scenario", ""),
+        p.get("style", ""),
+    )
+
+
+def _parse_extra_personas(text: str) -> list:
+    """Parse 'Name | Description' lines into [(name, desc), ...]. Skips blanks/malformed."""
+    if not text or not text.strip():
+        return []
+    out = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or "|" not in line:
+            continue
+        name, _, desc = line.partition("|")
+        name = name.strip()
+        desc = desc.strip()
+        if name:
+            out.append((name, desc))
+    return out
+
+
+def _recommendations(metrics: dict) -> list:
+    """Plain-English fixes for any metrics that missed their targets."""
+    recs = []
+    if metrics.get("num_conversations", 0) < 2:
+        return recs
+
+    sd = metrics.get("speaker_distinctiveness")
+    if sd is not None and sd < 0.30:
+        recs.append(
+            "Make persona descriptions more contrastive — different age, vocabulary, "
+            "or stance (skeptical vs enthusiastic, terse vs verbose)."
+        )
+
+    d2 = metrics.get("distinct_2", 1.0)
+    if d2 < 0.70:
+        recs.append(
+            "Enable variation per example, or batch with a wider topic. "
+            "Lexical diversity is below target."
+        )
+
+    td = metrics.get("topic_diversity")
+    if td is not None and td < 0.50:
+        recs.append(
+            "Conversations are clustered on the same theme. Use creative-brief mode or "
+            "broaden the topic each run."
+        )
+
+    sr = metrics.get("self_repetition_rate", 0)
+    if sr > 0.10:
+        recs.append(
+            "Model is repeating itself within conversations — lower max-new-tokens, "
+            "or shorten the requested style."
+        )
+
+    coherence = metrics.get("turn_coherence")
+    if coherence is not None:
+        if coherence < 0.30:
+            recs.append(
+                "Coherence low — turns feel unrelated. Try a stronger scene description, "
+                "or a smaller temperature on the model server."
+            )
+        elif coherence > 0.60:
+            recs.append(
+                "Coherence very high — turns may sound robotic / repetitive. "
+                "Try a higher temperature on the model server."
+            )
+
+    return recs
+
+
 def _grade(value: float, low: float, high: float | None = None) -> str:
     """Classify a metric value: 'ok' / 'warn' / 'alert' against a target.
 
@@ -716,7 +885,17 @@ def _format_metrics_card(metrics: dict, dedup_drops: int = 0) -> str:
         footer_bits.append(f"dedup drops {dedup_drops}")
     footer = '<div class="summary-line">' + "  ·  ".join(footer_bits) + "</div>"
 
-    return headline + grid + footer
+    recs = _recommendations(metrics)
+    if recs:
+        items = "".join(f"<li>{r}</li>" for r in recs)
+        rec_block = (
+            '<div class="recs"><div class="recs-label">How to improve</div>'
+            f'<ul>{items}</ul></div>'
+        )
+    else:
+        rec_block = ""
+
+    return headline + grid + footer + rec_block
 
 
 # ----------------------------- evaluation hook --------------------------------
@@ -751,6 +930,7 @@ def generate_handler(
     num_examples: int,
     enable_variation: bool,
     dedup_threshold: float,
+    extra_personas: str = "",
 ):
     """Generate N conversations and return (status, metrics, preview, file_path)."""
     n = max(1, int(num_examples))
@@ -777,6 +957,10 @@ def generate_handler(
     current_scenario = scenario
     current_style = style
 
+    extras = _parse_extra_personas(extra_personas)
+    base_personas = [(persona1, persona1_desc or ""), (persona2, persona2_desc or "")]
+    full_personas = [p for p in base_personas + extras if p[0].strip()]
+
     for i in range(n):
         if enable_variation and i > 0 and n > 1:
             try:
@@ -795,8 +979,7 @@ def generate_handler(
 
         turns = generate_conversation(
             topic=current_topic,
-            persona1=persona1, persona1_desc=persona1_desc,
-            persona2=persona2, persona2_desc=persona2_desc,
+            personas=full_personas,
             scenario=current_scenario, style=current_style,
             backend=backend,
             max_new_tokens=int(max_new_tokens),
@@ -992,6 +1175,12 @@ def build_ui() -> gr.Blocks:
                     '<span class="num">02</span><span class="name">Personas</span>'
                     '</div></div>'
                 )
+                preset_dropdown = gr.Dropdown(
+                    choices=list(PRESETS.keys()),
+                    value=list(PRESETS.keys())[0],
+                    label="Preset",
+                    info="Pick a curated cast or keep Custom and fill in your own.",
+                )
                 with gr.Row():
                     persona1 = gr.Textbox(value="Alice", label="Name 1", scale=1)
                     persona2 = gr.Textbox(value="Bob", label="Name 2", scale=1)
@@ -1004,6 +1193,13 @@ def build_ui() -> gr.Blocks:
                         value="A curious student new to the topic",
                         label="Desc 2", lines=2, scale=1,
                     )
+                extra_personas = gr.Textbox(
+                    value="",
+                    label="Add more (optional, one per line)",
+                    info="Format: Name | Description",
+                    placeholder="Carol | A skeptical scientist\nDave | An eager intern",
+                    lines=3,
+                )
 
                 gr.HTML(
                     '<div class="cdg-section"><div class="heading">'
@@ -1084,8 +1280,17 @@ def build_ui() -> gr.Blocks:
             persona1, persona1_desc, persona2, persona2_desc,
             topic, scenario, style, max_new_tokens,
             num_examples, enable_variation, dedup_threshold,
+            extra_personas,
         ]
         outputs = [status_md, metrics_md, preview_md, file_out]
+
+        # Preset → fill form
+        preset_dropdown.change(
+            _apply_preset,
+            inputs=[preset_dropdown],
+            outputs=[persona1, persona1_desc, persona2, persona2_desc,
+                     extra_personas, topic, scenario, style],
+        )
 
         generate_btn.click(
             lambda: (

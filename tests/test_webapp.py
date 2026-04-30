@@ -212,6 +212,69 @@ class TestFormatHelpers:
         from webapp import _format_preview
         assert _format_preview([], limit=3) == ""
 
+    def test_parse_extra_personas_empty(self):
+        from webapp import _parse_extra_personas
+        assert _parse_extra_personas("") == []
+        assert _parse_extra_personas("   ") == []
+
+    def test_parse_extra_personas_two_lines(self):
+        from webapp import _parse_extra_personas
+        text = "Carol | A skeptical scientist\nDave | An eager intern"
+        assert _parse_extra_personas(text) == [
+            ("Carol", "A skeptical scientist"),
+            ("Dave", "An eager intern"),
+        ]
+
+    def test_parse_extra_personas_skips_malformed(self):
+        from webapp import _parse_extra_personas
+        text = "Carol | A scientist\nbadline_no_pipe\n  \nDave | An intern"
+        assert _parse_extra_personas(text) == [
+            ("Carol", "A scientist"),
+            ("Dave", "An intern"),
+        ]
+
+    def test_parse_extra_personas_strips_whitespace(self):
+        from webapp import _parse_extra_personas
+        text = "  Carol  |   A scientist  "
+        assert _parse_extra_personas(text) == [("Carol", "A scientist")]
+
+
+class TestGenerateHandlerNSpeaker:
+    def test_extra_personas_pass_through_as_n_speaker(self, monkeypatch):
+        from webapp import generate_handler
+
+        captured = {}
+        def fake_generate(**kwargs):
+            captured["personas"] = kwargs.get("personas")
+            captured["persona1"] = kwargs.get("persona1")
+            return [
+                {"from": "human", "value": "hi", "speaker_name": "Alice"},
+                {"from": "gpt", "value": "hello", "speaker_name": "Bob"},
+                {"from": "gpt", "value": "hey", "speaker_name": "Carol"},
+            ]
+        monkeypatch.setattr("webapp.generate_conversation", fake_generate)
+        backend = MagicMock()
+        backend.complete.return_value = "anything"
+        _patch_build_backend(monkeypatch, backend)
+
+        status, metrics, preview, file_path = generate_handler(
+            backend_kind="openai", model_id="m",
+            api_base_url="http://x/v1", api_key="k", load_in_4bit=False,
+            persona1="Alice", persona1_desc="A",
+            persona2="Bob", persona2_desc="B",
+            topic="T", scenario="S", style="St",
+            max_new_tokens=256,
+            num_examples=1, enable_variation=False, dedup_threshold=0,
+            extra_personas="Carol | A skeptical scientist",
+        )
+        # When extra personas exist, the N-speaker path uses personas= kwarg
+        assert captured["personas"] == [
+            ("Alice", "A"),
+            ("Bob", "B"),
+            ("Carol", "A skeptical scientist"),
+        ]
+
+
     def test_format_metrics_renders_known_keys(self):
         from webapp import _format_metrics_card
         md = _format_metrics_card({
@@ -225,3 +288,63 @@ class TestFormatHelpers:
         assert "vendi" in low
         assert "5" in md  # num_conversations
         assert "drop" in low
+
+
+class TestPresets:
+    def test_presets_include_custom_and_at_least_two_examples(self):
+        from webapp import PRESETS
+        names = list(PRESETS.keys())
+        # First entry should be the no-op "Custom" option
+        assert names[0].lower().startswith("—") or "custom" in names[0].lower()
+        # Plus at least 2 real presets
+        assert len(names) >= 3
+
+    def test_apply_preset_returns_form_values(self):
+        from webapp import _apply_preset, PRESETS
+        # Pick the first non-custom preset
+        real_preset = [k for k in PRESETS if PRESETS[k]][0]
+        result = _apply_preset(real_preset)
+        # 8 outputs: persona1, persona1_desc, persona2, persona2_desc, extras, topic, scenario, style
+        assert len(result) == 8
+        # First field should be a non-empty persona1 name
+        p = PRESETS[real_preset]
+        assert result[0] == p["persona1"]
+        assert result[5] == p["topic"]
+
+    def test_apply_preset_avengers_has_three_speakers(self):
+        from webapp import PRESETS
+        # The Avengers preset should include extras (3rd speaker)
+        avengers = next((v for k, v in PRESETS.items() if v and "veng" in k.lower()), None)
+        assert avengers is not None, "expected an Avengers preset"
+        assert avengers.get("extra_personas", "").strip() != ""
+
+
+class TestRecommendations:
+    def test_low_speaker_distinctness_recommends_contrastive_descriptions(self):
+        from webapp import _recommendations
+        recs = _recommendations({"speaker_distinctiveness": 0.10, "num_conversations": 5})
+        assert any("contrast" in r.lower() or "persona" in r.lower() for r in recs)
+
+    def test_low_distinct_2_recommends_variation(self):
+        from webapp import _recommendations
+        recs = _recommendations({"distinct_2": 0.40, "num_conversations": 5})
+        assert any("variation" in r.lower() or "vary" in r.lower() for r in recs)
+
+    def test_high_self_repetition_recommends_shortening(self):
+        from webapp import _recommendations
+        recs = _recommendations({"self_repetition_rate": 0.20, "num_conversations": 5})
+        assert any("max" in r.lower() or "repeat" in r.lower() for r in recs)
+
+    def test_coherence_too_high_recommends_temperature(self):
+        from webapp import _recommendations
+        recs = _recommendations({"turn_coherence": 0.85, "num_conversations": 5})
+        assert any("temperature" in r.lower() or "robotic" in r.lower() for r in recs)
+
+    def test_no_recommendations_when_all_targets_met(self):
+        from webapp import _recommendations
+        recs = _recommendations({
+            "speaker_distinctiveness": 0.45, "distinct_2": 0.85,
+            "topic_diversity": 0.70, "self_repetition_rate": 0.02,
+            "turn_coherence": 0.45, "num_conversations": 5,
+        })
+        assert recs == []
