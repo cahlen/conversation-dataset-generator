@@ -185,6 +185,22 @@ def build_parser() -> argparse.ArgumentParser:
     general.add_argument("--force-upload", action="store_true")
     general.add_argument("--role-mapping", type=str, default=None,
                          help="Role mapping: 'p1=human,p2=gpt' or 'p1=gpt,p2=human'")
+    general.add_argument(
+        "--backend", type=str, default="hf", choices=["hf", "openai"],
+        help="Inference backend: 'hf' (local transformers, default) or "
+             "'openai' (OpenAI-compatible HTTP server like LM Studio or Ollama).",
+    )
+    general.add_argument(
+        "--api-base-url", type=str, default="http://localhost:1234/v1",
+        help="Base URL for the OpenAI-compatible server. "
+             "LM Studio: http://localhost:1234/v1 (default). "
+             "Ollama: http://localhost:11434/v1.",
+    )
+    general.add_argument(
+        "--api-key", type=str, default=None,
+        help="API key for the OpenAI-compatible server. "
+             "If unset, falls back to env OPENAI_API_KEY then 'not-needed'.",
+    )
 
     return parser
 

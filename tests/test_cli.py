@@ -227,3 +227,43 @@ class TestLoadPersonasFromYaml:
         yaml_file.write_text("personas:\n  - name: X\n")
         with pytest.raises(ValueError):
             load_personas_from_yaml(str(yaml_file))
+
+
+class TestBackendFlags:
+    def test_backend_default_is_hf(self):
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test"])
+        assert args.backend == "hf"
+
+    def test_backend_can_be_openai(self):
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test", "--backend", "openai"])
+        assert args.backend == "openai"
+
+    def test_backend_rejects_unknown_choice(self):
+        parser = build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["--creative-brief", "test", "--backend", "vllm"])
+
+    def test_api_base_url_default(self):
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test"])
+        assert args.api_base_url == "http://localhost:1234/v1"
+
+    def test_api_base_url_custom(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "--creative-brief", "test",
+            "--api-base-url", "http://localhost:11434/v1",
+        ])
+        assert args.api_base_url == "http://localhost:11434/v1"
+
+    def test_api_key_default_is_none(self):
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test"])
+        assert args.api_key is None
+
+    def test_api_key_custom(self):
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test", "--api-key", "sk-xyz"])
+        assert args.api_key == "sk-xyz"
