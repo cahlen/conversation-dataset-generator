@@ -46,12 +46,12 @@ python evaluate.py conversations.jsonl --no-embeddings    # skip embedding metri
 ## Testing
 
 ```bash
-pytest tests/ -v                                          # all 146 tests
+pytest tests/ -v                                          # all 180 tests
 pytest tests/test_parsing.py -v                           # one module
 pytest tests/test_parsing.py::TestParseVariationOutput -v # one class
 ```
 
-146 tests across 7 test files. No GPU required — LLM calls and embeddings are mocked.
+180 tests across 7 test files. No GPU required — LLM calls and embeddings are mocked.
 
 ## Architecture
 
