@@ -9,6 +9,7 @@ import time
 import yaml
 from tqdm import tqdm
 
+from conversation_dataset_generator.backend import make_backend
 from conversation_dataset_generator.models import DEFAULT_MODEL_ID, load_model_and_pipeline
 
 logger = logging.getLogger(__name__)
@@ -253,9 +254,6 @@ def _require(args, keys: list[str], parser) -> None:
 
 def build_backend_from_args(args):
     """Construct a ChatBackend from parsed CLI args."""
-    import os
-    from conversation_dataset_generator.backend import make_backend
-
     if args.backend == "hf":
         pipeline, tokenizer = load_model_and_pipeline(
             model_id=args.model_id, load_in_4bit=args.load_in_4bit,

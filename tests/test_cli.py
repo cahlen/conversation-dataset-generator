@@ -331,5 +331,18 @@ class TestBuildBackendFromArgs:
         ])
         backend = build_backend_from_args(args)
         assert isinstance(backend, OpenAIBackend)
-        # The OpenAI client receives the env var value; we trust the SDK to
-        # pick it up. Here we just verify the backend was constructed.
+        assert backend._client.api_key == "env-key"
+
+    def test_openai_backend_explicit_key_overrides_env(self, monkeypatch):
+        from conversation_dataset_generator.cli import build_backend_from_args
+        from conversation_dataset_generator.backend import OpenAIBackend
+
+        monkeypatch.setenv("OPENAI_API_KEY", "env-key")
+        parser = build_parser()
+        args = parser.parse_args([
+            "--creative-brief", "test", "--backend", "openai",
+            "--api-key", "explicit-key",
+        ])
+        backend = build_backend_from_args(args)
+        assert isinstance(backend, OpenAIBackend)
+        assert backend._client.api_key == "explicit-key"
