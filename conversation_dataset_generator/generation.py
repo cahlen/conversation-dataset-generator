@@ -32,6 +32,7 @@ _ARG_DEFAULTS = {
 
 def generate_args_from_brief(
     brief: str,
+    *,
     backend: ChatBackend,
     persona1_search_term: str | None = None,
     persona2_search_term: str | None = None,
@@ -94,6 +95,7 @@ def generate_args_from_brief(
 
 def generate_args_from_brief_safe(
     brief: str,
+    *,
     backend: ChatBackend,
     persona1_search_term: str | None = None,
     persona2_search_term: str | None = None,
@@ -101,7 +103,8 @@ def generate_args_from_brief_safe(
 ) -> dict | None:
     """Wrapper that fills missing optional fields with defaults."""
     result = generate_args_from_brief(
-        brief, backend,
+        brief,
+        backend=backend,
         persona1_search_term=persona1_search_term,
         persona2_search_term=persona2_search_term,
         max_retries=max_retries,
@@ -119,6 +122,7 @@ def generate_topic_variation(
     persona1: str, persona1_desc: str,
     persona2: str, persona2_desc: str,
     initial_topic: str, initial_scenario: str, initial_style: str,
+    *,
     backend: ChatBackend,
     original_brief: str | None = None,
 ) -> dict | None:
@@ -219,6 +223,7 @@ def generate_continuation(
     personas: list[tuple[str, str]],
     prior_turns: list[dict],
     topic: str, scenario: str, style: str,
+    *,
     backend: ChatBackend,
     max_new_tokens: int = 2048,
     role_mapping: dict | None = None,

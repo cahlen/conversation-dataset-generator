@@ -27,14 +27,14 @@ class TestGenerateArgsFromBrief:
             '--style "Dramatic and suspenseful"'
         )
         backend = make_mock_backend(response)
-        result = generate_args_from_brief("Sherlock and Watson", backend)
+        result = generate_args_from_brief("Sherlock and Watson", backend=backend)
         assert result is not None
         assert result["persona1"] == "Sherlock"
         assert result["persona2"] == "Watson"
 
     def test_returns_none_on_garbage_output(self):
         backend = make_mock_backend("This is just random garbage text")
-        result = generate_args_from_brief("Test brief", backend, max_retries=1)
+        result = generate_args_from_brief("Test brief", backend=backend, max_retries=1)
         assert result is None
 
     def test_applies_defaults_for_missing_optional_fields(self):
@@ -48,7 +48,7 @@ class TestGenerateArgsFromBrief:
             '--style "Tense"'
         )
         backend = make_mock_backend(response)
-        result = generate_args_from_brief("Test", backend)
+        result = generate_args_from_brief("Test", backend=backend)
         assert result is not None
 
 
@@ -158,6 +158,30 @@ class TestGenerateConversationMulti:
         assert turns is not None
         for turn in turns:
             assert "speaker_name" in turn
+
+
+class TestBackendIsKeywordOnly:
+    """Positional `backend` is rejected — protects against subtle call-site bugs."""
+
+    def test_generate_args_from_brief_rejects_positional_backend(self):
+        backend = make_mock_backend("anything")
+        with pytest.raises(TypeError):
+            generate_args_from_brief("brief", backend)
+
+    def test_generate_topic_variation_rejects_positional_backend(self):
+        backend = make_mock_backend("--topic \"x\"\n--scenario \"y\"\n--style \"z\"")
+        with pytest.raises(TypeError):
+            generate_topic_variation(
+                "A", "d1", "B", "d2", "T", "S", "St", backend,
+            )
+
+    def test_generate_continuation_rejects_positional_backend(self):
+        backend = make_mock_backend("Alice: hi")
+        with pytest.raises(TypeError):
+            generate_continuation(
+                [("Alice", "")], [{"from": "human", "value": "x", "speaker_name": "Alice"}],
+                "T", "S", "St", backend,
+            )
 
 
 class TestGenerateContinuation:

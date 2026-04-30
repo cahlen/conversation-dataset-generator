@@ -370,8 +370,10 @@ def main():
         if mode == "brief":
             variation_enabled = True
             generated = generate_args_from_brief_safe(
-                args.creative_brief, backend,
-                args.persona1_search_term, args.persona2_search_term,
+                args.creative_brief,
+                backend=backend,
+                persona1_search_term=args.persona1_search_term,
+                persona2_search_term=args.persona2_search_term,
             )
             if generated is None:
                 logger.error("Failed to generate args from brief. Exiting.")
