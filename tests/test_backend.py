@@ -191,3 +191,29 @@ class TestOpenAIBackend:
         )
         result = backend.complete([{"role": "user", "content": "x"}])
         assert result is None
+
+
+class TestMakeBackend:
+    def test_hf_kind(self):
+        from conversation_dataset_generator.backend import make_backend, HFBackend
+        pipeline = MagicMock()
+        tokenizer = MagicMock()
+        backend = make_backend("hf", pipeline=pipeline, tokenizer=tokenizer)
+        assert isinstance(backend, HFBackend)
+
+    def test_openai_kind(self):
+        from conversation_dataset_generator.backend import make_backend, OpenAIBackend
+        client = _make_openai_client()
+        backend = make_backend(
+            "openai",
+            model_id="m",
+            base_url="http://localhost:1234/v1",
+            api_key="k",
+            client=client,
+        )
+        assert isinstance(backend, OpenAIBackend)
+
+    def test_unknown_kind_raises(self):
+        from conversation_dataset_generator.backend import make_backend
+        with pytest.raises(ValueError, match="unknown backend"):
+            make_backend("nope")

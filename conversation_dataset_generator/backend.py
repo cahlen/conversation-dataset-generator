@@ -134,3 +134,21 @@ class OpenAIBackend:
             return None
         content = content.strip()
         return content if content else None
+
+
+def make_backend(kind: str, **kwargs) -> ChatBackend:
+    """Construct a ChatBackend by kind name.
+
+    For kind="hf": pass pipeline=, tokenizer=.
+    For kind="openai": pass model_id=, base_url=, api_key=, optionally client=.
+    """
+    if kind == "hf":
+        return HFBackend(kwargs["pipeline"], kwargs["tokenizer"])
+    if kind == "openai":
+        return OpenAIBackend(
+            model_id=kwargs["model_id"],
+            base_url=kwargs["base_url"],
+            api_key=kwargs.get("api_key"),
+            client=kwargs.get("client"),
+        )
+    raise ValueError(f"unknown backend: {kind!r} (expected 'hf' or 'openai')")
