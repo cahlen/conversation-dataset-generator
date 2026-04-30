@@ -227,6 +227,9 @@ See `examples/` for sample batch configs.
 | `--model-id ID` | `Qwen/Qwen2.5-7B-Instruct` | HuggingFace model for generation |
 | `--max-new-tokens N` | 4096 | Max tokens per generation |
 | `--load-in-4bit` | off | Enable 4-bit quantization (requires bitsandbytes) |
+| `--backend {hf,openai}` | `hf` | Inference backend: local transformers (`hf`) or OpenAI-compatible HTTP server (`openai`) |
+| `--api-base-url URL` | `http://localhost:1234/v1` | Server URL when `--backend openai`. Ollama: `http://localhost:11434/v1` |
+| `--api-key KEY` | env `OPENAI_API_KEY` | API key for `--backend openai`. Falls back to env, then to `"not-needed"` |
 | `--upload-to-hub REPO` | — | Upload dataset to HuggingFace Hub |
 | `--force-upload` | off | Skip upload confirmation |
 | `--role-mapping MAP` | first=human, rest=gpt | Map speaker names to roles (e.g., `"Alice=human,Bob=gpt"`) |
