@@ -371,6 +371,16 @@ python generate.py \
 
 When `--backend openai` is set, `--load-in-4bit` is silently ignored (quantization happens server-side). The default `--backend hf` preserves the original local-transformers behavior.
 
+## Web interface
+
+A minimal browser UI is available for one-off generation without writing a CLI invocation. It supports both backends (`hf` and `openai`).
+
+```bash
+python webapp.py
+```
+
+This launches a local Gradio app (default `http://127.0.0.1:7860`). Pick the backend, fill in two personas + topic/scenario/style, and click Generate. The form mirrors the CLI's manual mode — the same `--backend openai` recipes for LM Studio and Ollama work here too; just paste the same URL and model ID into the form.
+
 ## For Contributors
 
 ### Package Structure

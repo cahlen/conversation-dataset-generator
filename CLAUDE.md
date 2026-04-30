@@ -41,17 +41,20 @@ python batch_generate.py examples/batch_mixed_modes.yaml
 # Evaluate generated data
 python evaluate.py conversations.jsonl
 python evaluate.py conversations.jsonl --no-embeddings    # skip embedding metrics
+
+# Web UI (manual mode only)
+python webapp.py
 ```
 
 ## Testing
 
 ```bash
-pytest tests/ -v                                          # all 180 tests
+pytest tests/ -v                                          # all 188 tests
 pytest tests/test_parsing.py -v                           # one module
 pytest tests/test_parsing.py::TestParseVariationOutput -v # one class
 ```
 
-180 tests across 7 test files. No GPU required — LLM calls and embeddings are mocked.
+188 tests across 8 test files. No GPU required — LLM calls and embeddings are mocked.
 
 ## Architecture
 
