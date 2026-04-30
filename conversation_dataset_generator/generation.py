@@ -6,6 +6,7 @@ import logging
 import re
 import time
 
+from conversation_dataset_generator.backend import ChatBackend
 from conversation_dataset_generator.parsing import (
     parse_arg_generation_output,
     parse_conversation_to_sharegpt,
@@ -31,7 +32,7 @@ _ARG_DEFAULTS = {
 
 def generate_args_from_brief(
     brief: str,
-    backend,
+    backend: ChatBackend,
     persona1_search_term: str | None = None,
     persona2_search_term: str | None = None,
     max_retries: int = 3,
@@ -93,7 +94,7 @@ def generate_args_from_brief(
 
 def generate_args_from_brief_safe(
     brief: str,
-    backend,
+    backend: ChatBackend,
     persona1_search_term: str | None = None,
     persona2_search_term: str | None = None,
     max_retries: int = 3,
@@ -118,7 +119,7 @@ def generate_topic_variation(
     persona1: str, persona1_desc: str,
     persona2: str, persona2_desc: str,
     initial_topic: str, initial_scenario: str, initial_style: str,
-    backend,
+    backend: ChatBackend,
     original_brief: str | None = None,
 ) -> dict | None:
     """Generate a topic/scenario/style variation for existing personas."""
@@ -170,11 +171,11 @@ def generate_conversation(
     persona2_desc: str | None = None,
     scenario: str = "",
     style: str = "",
-    backend=None,
     max_new_tokens: int = 2048,
     include_points: str | None = None,
     role_mapping: dict | None = None,
     *,
+    backend: ChatBackend,
     personas: list[tuple[str, str]] | None = None,
 ) -> list[dict] | None:
     """Generate a conversation and parse it into ShareGPT turn format."""
@@ -218,7 +219,7 @@ def generate_continuation(
     personas: list[tuple[str, str]],
     prior_turns: list[dict],
     topic: str, scenario: str, style: str,
-    backend,
+    backend: ChatBackend,
     max_new_tokens: int = 2048,
     role_mapping: dict | None = None,
 ) -> list[dict] | None:
