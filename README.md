@@ -14,7 +14,7 @@ python generate.py \
   --num-examples 5 --output-file conversations.jsonl
 ```
 
-Requires Python 3.10+ and an NVIDIA GPU with CUDA.
+Requires Python 3.10+. For the default `--backend hf`, you'll also need an NVIDIA GPU with CUDA. With `--backend openai` you can use any OpenAI-compatible server (LM Studio, Ollama, OpenAI itself, etc.) — see ["Using a remote OpenAI-compatible server"](#using-a-remote-openai-compatible-server-no-local-gpu-needed) below.
 
 ## Quick Start (Docker)
 
