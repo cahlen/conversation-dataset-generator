@@ -252,28 +252,51 @@ def _require(args, keys: list[str], parser) -> None:
         parser.error(f"Missing required arguments: {' '.join(missing)}")
 
 
-def build_backend_from_args(args):
-    """Construct a ChatBackend from parsed CLI args."""
-    if args.backend == "hf":
+def build_backend(
+    kind: str,
+    model_id: str,
+    *,
+    load_in_4bit: bool = False,
+    api_base_url: str | None = None,
+    api_key: str | None = None,
+):
+    """Construct a ChatBackend from raw config values.
+
+    Used by both the CLI (via build_backend_from_args) and the web UI.
+    For kind="hf", load_in_4bit applies. For kind="openai", api_base_url is
+    required and api_key falls back to OPENAI_API_KEY env, then to "not-needed".
+    """
+    if kind == "hf":
         pipeline, tokenizer = load_model_and_pipeline(
-            model_id=args.model_id, load_in_4bit=args.load_in_4bit,
+            model_id=model_id, load_in_4bit=load_in_4bit,
         )
         return make_backend("hf", pipeline=pipeline, tokenizer=tokenizer)
 
-    if args.model_id == DEFAULT_MODEL_ID:
+    if model_id == DEFAULT_MODEL_ID:
         logger.warning(
             "--backend openai is set but --model-id is the HF default %r. "
             "Most OpenAI-compatible servers won't recognize this; pass an "
             "explicit --model-id (e.g., 'llama3.2:1b' for Ollama).",
-            args.model_id,
+            model_id,
         )
 
-    api_key = args.api_key or os.environ.get("OPENAI_API_KEY")
+    resolved_key = api_key or os.environ.get("OPENAI_API_KEY")
     return make_backend(
         "openai",
+        model_id=model_id,
+        base_url=api_base_url,
+        api_key=resolved_key,
+    )
+
+
+def build_backend_from_args(args):
+    """Construct a ChatBackend from parsed CLI args (thin wrapper around build_backend)."""
+    return build_backend(
+        kind=args.backend,
         model_id=args.model_id,
-        base_url=args.api_base_url,
-        api_key=api_key,
+        load_in_4bit=args.load_in_4bit,
+        api_base_url=args.api_base_url,
+        api_key=args.api_key,
     )
 
 

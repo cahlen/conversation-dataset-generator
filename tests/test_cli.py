@@ -356,3 +356,65 @@ class TestBuildBackendFromArgs:
         with caplog.at_level("WARNING"):
             build_backend_from_args(args)
         assert any("model-id" in r.message.lower() for r in caplog.records)
+
+
+class TestBuildBackend:
+    """Direct tests for build_backend(), the args-free helper.
+
+    build_backend() exists so the web UI (and any future caller) can construct
+    a backend from raw values without needing to fabricate an argparse Namespace.
+    build_backend_from_args() is now a thin wrapper around it.
+    """
+
+    def test_hf_kind(self, monkeypatch):
+        from conversation_dataset_generator.cli import build_backend
+        from conversation_dataset_generator.backend import HFBackend
+
+        fake_pipe = MagicMock()
+        fake_tok = MagicMock()
+        monkeypatch.setattr(
+            "conversation_dataset_generator.cli.load_model_and_pipeline",
+            lambda **kw: (fake_pipe, fake_tok),
+        )
+        backend = build_backend(kind="hf", model_id="qwen-7b")
+        assert isinstance(backend, HFBackend)
+
+    def test_hf_kind_passes_load_in_4bit(self, monkeypatch):
+        from conversation_dataset_generator.cli import build_backend
+
+        captured = {}
+        def fake_load(**kw):
+            captured.update(kw)
+            return MagicMock(), MagicMock()
+        monkeypatch.setattr(
+            "conversation_dataset_generator.cli.load_model_and_pipeline", fake_load,
+        )
+        build_backend(kind="hf", model_id="m", load_in_4bit=True)
+        assert captured["load_in_4bit"] is True
+
+    def test_openai_kind(self):
+        from conversation_dataset_generator.cli import build_backend
+        from conversation_dataset_generator.backend import OpenAIBackend
+
+        backend = build_backend(
+            kind="openai",
+            model_id="llama3.2:1b",
+            api_base_url="http://localhost:11434/v1",
+            api_key="test-key",
+        )
+        assert isinstance(backend, OpenAIBackend)
+        assert backend.model_id == "llama3.2:1b"
+        assert backend._client.api_key == "test-key"
+
+    def test_openai_kind_uses_env_var_when_key_omitted(self, monkeypatch):
+        from conversation_dataset_generator.cli import build_backend
+        from conversation_dataset_generator.backend import OpenAIBackend
+
+        monkeypatch.setenv("OPENAI_API_KEY", "env-key")
+        backend = build_backend(
+            kind="openai",
+            model_id="m",
+            api_base_url="http://x/v1",
+        )
+        assert isinstance(backend, OpenAIBackend)
+        assert backend._client.api_key == "env-key"
