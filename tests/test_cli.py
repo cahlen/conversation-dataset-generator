@@ -267,3 +267,69 @@ class TestBackendFlags:
         parser = build_parser()
         args = parser.parse_args(["--creative-brief", "test", "--api-key", "sk-xyz"])
         assert args.api_key == "sk-xyz"
+
+
+from unittest.mock import MagicMock, patch
+
+
+class TestBuildBackendFromArgs:
+    def test_hf_backend(self, monkeypatch):
+        from conversation_dataset_generator.cli import build_backend_from_args
+        from conversation_dataset_generator.backend import HFBackend
+
+        fake_pipe = MagicMock()
+        fake_tok = MagicMock()
+        monkeypatch.setattr(
+            "conversation_dataset_generator.cli.load_model_and_pipeline",
+            lambda **kw: (fake_pipe, fake_tok),
+        )
+
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test"])
+        backend = build_backend_from_args(args)
+        assert isinstance(backend, HFBackend)
+
+    def test_hf_backend_passes_quantization_flag(self, monkeypatch):
+        from conversation_dataset_generator.cli import build_backend_from_args
+
+        captured = {}
+        def fake_load(**kw):
+            captured.update(kw)
+            return MagicMock(), MagicMock()
+        monkeypatch.setattr(
+            "conversation_dataset_generator.cli.load_model_and_pipeline", fake_load,
+        )
+
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test", "--load-in-4bit"])
+        build_backend_from_args(args)
+        assert captured["load_in_4bit"] is True
+
+    def test_openai_backend(self):
+        from conversation_dataset_generator.cli import build_backend_from_args
+        from conversation_dataset_generator.backend import OpenAIBackend
+
+        parser = build_parser()
+        args = parser.parse_args([
+            "--creative-brief", "test", "--backend", "openai",
+            "--api-base-url", "http://localhost:11434/v1",
+            "--api-key", "test-key",
+            "--model-id", "llama3.1",
+        ])
+        backend = build_backend_from_args(args)
+        assert isinstance(backend, OpenAIBackend)
+        assert backend.model_id == "llama3.1"
+
+    def test_openai_backend_falls_back_to_env_var(self, monkeypatch):
+        from conversation_dataset_generator.cli import build_backend_from_args
+        from conversation_dataset_generator.backend import OpenAIBackend
+
+        monkeypatch.setenv("OPENAI_API_KEY", "env-key")
+        parser = build_parser()
+        args = parser.parse_args([
+            "--creative-brief", "test", "--backend", "openai",
+        ])
+        backend = build_backend_from_args(args)
+        assert isinstance(backend, OpenAIBackend)
+        # The OpenAI client receives the env var value; we trust the SDK to
+        # pick it up. Here we just verify the backend was constructed.

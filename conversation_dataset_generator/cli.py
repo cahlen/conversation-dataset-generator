@@ -9,7 +9,7 @@ import time
 import yaml
 from tqdm import tqdm
 
-from conversation_dataset_generator.models import DEFAULT_MODEL_ID
+from conversation_dataset_generator.models import DEFAULT_MODEL_ID, load_model_and_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -251,6 +251,26 @@ def _require(args, keys: list[str], parser) -> None:
         parser.error(f"Missing required arguments: {' '.join(missing)}")
 
 
+def build_backend_from_args(args):
+    """Construct a ChatBackend from parsed CLI args."""
+    import os
+    from conversation_dataset_generator.backend import make_backend
+
+    if args.backend == "hf":
+        pipeline, tokenizer = load_model_and_pipeline(
+            model_id=args.model_id, load_in_4bit=args.load_in_4bit,
+        )
+        return make_backend("hf", pipeline=pipeline, tokenizer=tokenizer)
+
+    api_key = args.api_key or os.environ.get("OPENAI_API_KEY")
+    return make_backend(
+        "openai",
+        model_id=args.model_id,
+        base_url=args.api_base_url,
+        api_key=api_key,
+    )
+
+
 def main():
     """Main entry point for the conversation dataset generator."""
     script_start = time.monotonic()
@@ -269,14 +289,8 @@ def main():
     mode = detect_mode(args, parser)
     logger.info("Mode: %s", mode)
 
-    # --- Load model ---
-    from conversation_dataset_generator.models import load_model_and_pipeline
-
-    text_generator, tokenizer = load_model_and_pipeline(
-        model_id=args.model_id, load_in_4bit=args.load_in_4bit,
-    )
-    from conversation_dataset_generator.backend import HFBackend
-    backend = HFBackend(text_generator, tokenizer)
+    # --- Build backend ---
+    backend = build_backend_from_args(args)
 
     # --- Imports ---
     from conversation_dataset_generator.generation import (
