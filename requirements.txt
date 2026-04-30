@@ -9,3 +9,4 @@ tqdm>=4.62.0
 bitsandbytes
 sentence-transformers
 openai>=1.0
+gradio>=4.0
