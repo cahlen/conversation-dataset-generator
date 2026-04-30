@@ -203,6 +203,19 @@ def build_parser() -> argparse.ArgumentParser:
              "If unset, falls back to env OPENAI_API_KEY then 'not-needed'.",
     )
 
+    def _ratio(value: str) -> float:
+        x = float(value)
+        if not 0.0 <= x <= 1.0:
+            raise argparse.ArgumentTypeError(f"must be in [0.0, 1.0], got {x}")
+        return x
+
+    general.add_argument(
+        "--dedup-threshold", type=_ratio, default=None, metavar="FLOAT",
+        help="Drop generated conversations with cosine similarity > this value to "
+             "any prior conversation in the run. Typical range: 0.85-0.97. "
+             "Off by default. Requires sentence-transformers.",
+    )
+
     return parser
 
 
@@ -300,6 +313,43 @@ def build_backend_from_args(args):
     )
 
 
+def _dedup_check(turns, embedding_model, prior_embeddings, threshold):
+    """Decide whether a freshly-generated conversation is a near-duplicate.
+
+    Returns True if the conversation should be DROPPED (too similar to a prior).
+    Returns False otherwise; on a keep, the new embedding is appended to
+    prior_embeddings as a side effect.
+
+    Disabled (returns False) when embedding_model or threshold is None.
+    """
+    if embedding_model is None or threshold is None:
+        return False
+    from conversation_dataset_generator.evaluation import is_near_duplicate
+    text = " ".join(t["value"] for t in turns)
+    new_emb = embedding_model.encode([text], show_progress_bar=False)[0]
+    if is_near_duplicate(new_emb, prior_embeddings, threshold=threshold):
+        return True
+    prior_embeddings.append(new_emb)
+    return False
+
+
+def _load_dedup_model(threshold):
+    """Lazy-load the sentence-transformers model used for dedup. Returns None
+    if dedup is disabled or the model cannot be loaded."""
+    if threshold is None:
+        return None
+    try:
+        from sentence_transformers import SentenceTransformer
+    except ImportError:
+        logger.warning(
+            "--dedup-threshold set but sentence-transformers is not installed. "
+            "Dedup disabled."
+        )
+        return None
+    logger.info("Loading embedding model for dedup: all-MiniLM-L6-v2")
+    return SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+
+
 def main():
     """Main entry point for the conversation dataset generator."""
     script_start = time.monotonic()
@@ -367,6 +417,9 @@ def main():
 
         conversations = []
         total_llm_time = 0.0
+        dedup_model = _load_dedup_model(args.dedup_threshold)
+        dedup_priors = []
+        dedup_drops = 0
 
         for i in tqdm(range(args.num_examples), desc="Continuing", unit="example"):
             start = time.monotonic()
@@ -380,6 +433,10 @@ def main():
             total_llm_time += time.monotonic() - start
 
             if turns:
+                if _dedup_check(turns, dedup_model, dedup_priors, args.dedup_threshold):
+                    dedup_drops += 1
+                    logger.info("Dropped near-duplicate continuation %d", i + 1)
+                    continue
                 conversations.append({
                     "turns": turns,
                     "topic": conv_data["topic"],
@@ -463,6 +520,9 @@ def main():
         # --- Generation loop ---
         conversations = []
         total_llm_time = 0.0
+        dedup_model = _load_dedup_model(args.dedup_threshold)
+        dedup_priors = []
+        dedup_drops = 0
 
         for i in tqdm(range(args.num_examples), desc="Generating", unit="example"):
             personas_for_this_conv = personas
@@ -522,6 +582,10 @@ def main():
             total_llm_time += time.monotonic() - start
 
             if turns:
+                if _dedup_check(turns, dedup_model, dedup_priors, args.dedup_threshold):
+                    dedup_drops += 1
+                    logger.info("Dropped near-duplicate conversation %d", i + 1)
+                    continue
                 conversations.append({
                     "turns": turns,
                     "topic": current_topic,
@@ -533,6 +597,8 @@ def main():
     # --- Write output ---
     num_generated = len(conversations)
     logger.info("Generated %d/%d conversations", num_generated, args.num_examples)
+    if 'dedup_drops' in locals() and dedup_drops:
+        logger.info("Dedup dropped %d near-duplicate conversations", dedup_drops)
 
     if not conversations:
         logger.error("No conversations generated. Exiting.")

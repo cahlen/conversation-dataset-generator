@@ -358,6 +358,68 @@ class TestBuildBackendFromArgs:
         assert any("model-id" in r.message.lower() for r in caplog.records)
 
 
+class TestDedupCheck:
+    """Internal helper: embed a generated conversation and decide if it's a duplicate."""
+
+    def test_first_conversation_is_not_duplicate_and_is_recorded(self):
+        import numpy as np
+        from conversation_dataset_generator.cli import _dedup_check
+        model = MagicMock()
+        model.encode.return_value = np.array([[1.0, 0.0, 0.0]])
+        priors = []
+        result = _dedup_check([{"value": "hi"}], model, priors, threshold=0.95)
+        assert result is False
+        assert len(priors) == 1
+
+    def test_near_duplicate_is_dropped_and_not_recorded(self):
+        import numpy as np
+        from conversation_dataset_generator.cli import _dedup_check
+        model = MagicMock()
+        model.encode.side_effect = [
+            np.array([[1.0, 0.0, 0.0]]),
+            np.array([[0.99, 0.01, 0.0]]),
+        ]
+        priors = []
+        _dedup_check([{"value": "first"}], model, priors, threshold=0.95)
+        result = _dedup_check([{"value": "near-dup"}], model, priors, threshold=0.95)
+        assert result is True
+        assert len(priors) == 1
+
+    def test_disabled_when_model_is_none(self):
+        from conversation_dataset_generator.cli import _dedup_check
+        result = _dedup_check([{"value": "hi"}], None, [], threshold=None)
+        assert result is False
+
+    def test_concatenates_turn_values_for_embedding(self):
+        import numpy as np
+        from conversation_dataset_generator.cli import _dedup_check
+        model = MagicMock()
+        model.encode.return_value = np.array([[1.0, 0.0]])
+        _dedup_check(
+            [{"value": "hello"}, {"value": "world"}],
+            model, [], threshold=0.95,
+        )
+        call_arg = model.encode.call_args[0][0]
+        assert "hello" in call_arg[0] and "world" in call_arg[0]
+
+
+class TestDedupFlag:
+    def test_dedup_threshold_default_is_none(self):
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test"])
+        assert args.dedup_threshold is None
+
+    def test_dedup_threshold_custom(self):
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test", "--dedup-threshold", "0.92"])
+        assert args.dedup_threshold == pytest.approx(0.92)
+
+    def test_dedup_threshold_rejects_out_of_range(self):
+        parser = build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["--creative-brief", "test", "--dedup-threshold", "1.5"])
+
+
 class TestBuildBackend:
     """Direct tests for build_backend(), the args-free helper.
 
