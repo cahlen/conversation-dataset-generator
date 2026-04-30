@@ -323,6 +323,51 @@ python evaluate.py data.jsonl --format json     # machine-readable
 python evaluate.py data.jsonl --no-embeddings   # skip embedding metrics (faster)
 ```
 
+## Using a remote OpenAI-compatible server (no local GPU needed)
+
+You can drive `generate.py` against any OpenAI-compatible inference server — LM Studio, Ollama, vLLM, TGI, or the real OpenAI API. This sidesteps local CUDA and lets you use models bigger than your VRAM.
+
+### LM Studio
+
+Start the server in LM Studio (Server tab, default port 1234), load a model, then:
+
+```bash
+python generate.py \
+  --backend openai \
+  --api-base-url http://localhost:1234/v1 \
+  --model-id "lmstudio-community/Qwen2.5-7B-Instruct-GGUF" \
+  --creative-brief "Sherlock and Watson debate AI" \
+  --num-examples 5 \
+  --output-file out.jsonl
+```
+
+### Ollama
+
+```bash
+ollama pull llama3.2:1b   # or any model you like
+python generate.py \
+  --backend openai \
+  --api-base-url http://localhost:11434/v1 \
+  --model-id llama3.2:1b \
+  --creative-brief "Two chefs argue about umami" \
+  --num-examples 5 \
+  --output-file out.jsonl
+```
+
+### OpenAI (or OpenRouter, Together, etc.)
+
+```bash
+export OPENAI_API_KEY=sk-...
+python generate.py \
+  --backend openai \
+  --api-base-url https://api.openai.com/v1 \
+  --model-id gpt-4o-mini \
+  --creative-brief "..." --num-examples 5 \
+  --output-file out.jsonl
+```
+
+When `--backend openai` is set, `--load-in-4bit` is silently ignored (quantization happens server-side). The default `--backend hf` preserves the original local-transformers behavior.
+
 ## For Contributors
 
 ### Package Structure

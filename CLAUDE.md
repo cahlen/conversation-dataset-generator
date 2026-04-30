@@ -66,6 +66,7 @@ pytest tests/test_parsing.py::TestParseVariationOutput -v # one class
 | `parsing.py` | Regex parsers: raw LLM text → ShareGPT turns (N-speaker), variation output, arg output |
 | `output.py` | JSONL serialization, dataset card templates, load conversation from JSONL |
 | `hub.py` | HuggingFace Hub upload (isolated, optional) |
+| `backend.py` | ChatBackend protocol + HFBackend (transformers) and OpenAIBackend (LM Studio / Ollama / OpenAI) implementations |
 | `character_pool.py` | YAML pool loading, validation, random group selection |
 | `web_search.py` | DuckDuckGo persona context search for creative brief mode |
 | `evaluation.py` | Intrinsic quality metrics (distinct-N, coherence, speaker distinctiveness) |
@@ -83,6 +84,7 @@ pytest tests/test_parsing.py::TestParseVariationOutput -v # one class
 ### Key Details
 
 - Default model: `Qwen/Qwen2.5-7B-Instruct`
+- Backends: `--backend hf` (default, local transformers) or `--backend openai` (OpenAI-compatible HTTP server). For openai, set `--api-base-url` (LM Studio default `http://localhost:1234/v1`, Ollama `http://localhost:11434/v1`) and optionally `--api-key`.
 - Default max tokens: 4096
 - N-speaker support: `--persona` (repeatable) or `--personas` YAML file
 - Role mapping: `--train-speaker "Name"` (that speaker = gpt, rest = human) or `--role-mapping "Name1=human,Name2=gpt"`
