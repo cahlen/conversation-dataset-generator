@@ -444,6 +444,136 @@ class TestFixPersonas:
         assert "error" in status.lower() or "fail" in status.lower()
 
 
+class TestBrainstormHandler:
+    """Creative-brief mode: paste a brief, LLM populates persona/scene fields."""
+
+    def test_populates_form_fields(self, monkeypatch):
+        from webapp import brainstorm_handler
+
+        backend = MagicMock()
+        backend.complete.return_value = (
+            '--persona1 "Iron Man"\n--persona1-desc "Genius billionaire"\n'
+            '--persona2 "Captain America"\n--persona2-desc "Earnest leader"\n'
+            '--topic "team dynamics"\n--scenario "the conference room"\n'
+            '--style "Tense"'
+        )
+        _patch_build_backend(monkeypatch, backend)
+
+        result = brainstorm_handler(
+            backend_kind="openai", model_id="m",
+            api_base_url="http://x/v1", api_key="k", load_in_4bit=False,
+            brief="Two avengers debate strategy",
+        )
+        # 8 outputs: persona1, persona1_desc, persona2, persona2_desc, topic, scenario, style, status
+        assert len(result) == 8
+        assert result[0] == "Iron Man"
+        assert "billionaire" in result[1]
+        assert result[2] == "Captain America"
+        assert result[4] == "team dynamics"
+        assert "conference" in result[5]
+
+    def test_empty_brief_returns_error(self):
+        from webapp import brainstorm_handler
+        result = brainstorm_handler(
+            backend_kind="openai", model_id="m",
+            api_base_url="x", api_key="", load_in_4bit=False,
+            brief="",
+        )
+        status = result[-1].lower()
+        assert "brief" in status or "empty" in status
+
+    def test_backend_failure_returns_error(self, monkeypatch):
+        from webapp import brainstorm_handler
+        def boom(**kw):
+            raise RuntimeError("connection refused")
+        monkeypatch.setattr("webapp.build_backend", boom)
+        result = brainstorm_handler(
+            backend_kind="openai", model_id="m",
+            api_base_url="x", api_key="", load_in_4bit=False,
+            brief="A real brief",
+        )
+        status = result[-1].lower()
+        assert "error" in status or "fail" in status or "refused" in status
+
+
+class TestTrainSpeaker:
+    """train_speaker dropdown should produce role_mapping for fine-tuning."""
+
+    def test_auto_train_speaker_means_no_explicit_mapping(self, monkeypatch):
+        from webapp import generate_handler
+
+        captured = {}
+        def fake_gen(**kw):
+            captured.update(kw)
+            return [{"from": "human", "value": "hi", "speaker_name": "Alice"}]
+        monkeypatch.setattr("webapp.generate_conversation", fake_gen)
+        backend = MagicMock(); backend.complete.return_value = "x"
+        _patch_build_backend(monkeypatch, backend)
+
+        generate_handler(
+            backend_kind="openai", model_id="m",
+            api_base_url="http://x/v1", api_key="k", load_in_4bit=False,
+            persona1="Alice", persona1_desc="A",
+            persona2="Bob", persona2_desc="B",
+            topic="T", scenario="S", style="St",
+            max_new_tokens=256,
+            num_examples=1, enable_variation=False, dedup_threshold=0,
+            train_speaker="auto",
+        )
+        # When auto, role_mapping should be None or absent
+        assert captured.get("role_mapping") in (None, {})
+
+    def test_named_train_speaker_builds_mapping(self, monkeypatch):
+        from webapp import generate_handler
+
+        captured = {}
+        def fake_gen(**kw):
+            captured.update(kw)
+            return [{"from": "gpt", "value": "hi", "speaker_name": "Bob"}]
+        monkeypatch.setattr("webapp.generate_conversation", fake_gen)
+        backend = MagicMock(); backend.complete.return_value = "x"
+        _patch_build_backend(monkeypatch, backend)
+
+        generate_handler(
+            backend_kind="openai", model_id="m",
+            api_base_url="http://x/v1", api_key="k", load_in_4bit=False,
+            persona1="Alice", persona1_desc="A",
+            persona2="Bob", persona2_desc="B",
+            topic="T", scenario="S", style="St",
+            max_new_tokens=256,
+            num_examples=1, enable_variation=False, dedup_threshold=0,
+            train_speaker="Bob",
+        )
+        rm = captured.get("role_mapping") or {}
+        assert rm.get("Bob") == "gpt"
+        assert rm.get("Alice") == "human"
+
+
+class TestIncludePoints:
+    def test_include_points_passed_through(self, monkeypatch):
+        from webapp import generate_handler
+
+        captured = {}
+        def fake_gen(**kw):
+            captured.update(kw)
+            return [{"from": "human", "value": "hi", "speaker_name": "Alice"}]
+        monkeypatch.setattr("webapp.generate_conversation", fake_gen)
+        backend = MagicMock(); backend.complete.return_value = "x"
+        _patch_build_backend(monkeypatch, backend)
+
+        generate_handler(
+            backend_kind="openai", model_id="m",
+            api_base_url="http://x/v1", api_key="k", load_in_4bit=False,
+            persona1="Alice", persona1_desc="A",
+            persona2="Bob", persona2_desc="B",
+            topic="T", scenario="S", style="St",
+            max_new_tokens=256,
+            num_examples=1, enable_variation=False, dedup_threshold=0,
+            include_points="rain, sun, umbrellas",
+        )
+        assert captured.get("include_points") == "rain, sun, umbrellas"
+
+
 class TestPresets:
     def test_presets_include_custom_and_at_least_two_examples(self):
         from webapp import PRESETS

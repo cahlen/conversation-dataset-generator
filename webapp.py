@@ -22,10 +22,10 @@ import time
 import gradio as gr
 
 from conversation_dataset_generator.cli import (
-    _dedup_check, _load_dedup_model, build_backend,
+    _dedup_check, _load_dedup_model, build_backend, build_role_mapping,
 )
 from conversation_dataset_generator.generation import (
-    generate_conversation, generate_topic_variation,
+    generate_args_from_brief_safe, generate_conversation, generate_topic_variation,
 )
 from conversation_dataset_generator.output import write_jsonl
 
@@ -269,6 +269,29 @@ body { background: var(--paper) !important; color: var(--ink) !important; font-f
 }
 #cdg-generate-btn button:hover { background: var(--accent) !important; }
 #cdg-generate-btn button:active { transform: translateY(1px); }
+
+/* Brainstorm button: smaller, ink outline */
+#cdg-brief-row { margin: 8px 0 4px 0; align-items: end; gap: 8px; }
+#cdg-brainstorm-btn,
+#cdg-brainstorm-btn button {
+    background: transparent !important;
+    color: var(--ink) !important;
+    border: 1px solid var(--ink) !important;
+    border-radius: 0 !important;
+    font-family: var(--mono) !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.14em !important;
+    text-transform: uppercase !important;
+    padding: 8px 12px !important;
+    cursor: pointer;
+    transition: background 160ms ease, color 160ms ease;
+    align-self: end !important;
+}
+#cdg-brainstorm-btn button:hover {
+    background: var(--ink) !important;
+    color: var(--paper) !important;
+}
 
 /* Auto-fix button: vermillion outline, secondary tone */
 #cdg-fix-row { margin: 8px 0 4px 0; align-items: center; }
@@ -716,6 +739,48 @@ def _fix_topic_messages(topic: str) -> list:
             "Return only the new topic, no quotes, no labels."
         )},
     ]
+
+
+def brainstorm_handler(
+    backend_kind: str,
+    model_id: str,
+    api_base_url: str,
+    api_key: str,
+    load_in_4bit: bool,
+    brief: str,
+):
+    """Take a one-line creative brief, ask the LLM to invent personas + scene.
+    Returns (persona1, persona1_desc, persona2, persona2_desc, topic, scenario,
+    style, status_html)."""
+    if not brief or not brief.strip():
+        return ("", "", "", "", "", "", "",
+                _error_block("Brief is empty — paste an idea like 'Sherlock and Watson debate AI'."))
+
+    try:
+        backend = build_backend(
+            kind=backend_kind, model_id=model_id,
+            load_in_4bit=load_in_4bit,
+            api_base_url=api_base_url, api_key=api_key or None,
+        )
+    except Exception as exc:
+        return ("", "", "", "", "", "", "",
+                _error_block(f"Failed to build backend: {exc}"))
+
+    args = generate_args_from_brief_safe(brief, backend=backend)
+    if args is None:
+        return ("", "", "", "", "", "", "",
+                _error_block("LLM couldn't produce parseable personas. Try rephrasing the brief."))
+
+    return (
+        args.get("persona1", ""),
+        args.get("persona1_desc", ""),
+        args.get("persona2", ""),
+        args.get("persona2_desc", ""),
+        args.get("topic", ""),
+        args.get("scenario", ""),
+        args.get("style", ""),
+        _success_block(f"Brainstormed personas + scene from your brief. Edit if needed, then click Generate."),
+    )
 
 
 def auto_fix_handler(
@@ -1234,6 +1299,8 @@ def generate_handler(
     enable_variation: bool,
     dedup_threshold: float,
     extra_personas: str = "",
+    train_speaker: str = "auto",
+    include_points: str = "",
 ):
     """Generate N conversations and return (status, metrics, preview, file_path)."""
     n = max(1, int(num_examples))
@@ -1264,6 +1331,15 @@ def generate_handler(
     base_personas = [(persona1, persona1_desc or ""), (persona2, persona2_desc or "")]
     full_personas = [p for p in base_personas + extras if p[0].strip()]
 
+    # Build role_mapping if user picked a specific speaker for the gpt role
+    role_mapping = None
+    if train_speaker and train_speaker != "auto":
+        persona_names = [n for n, _ in full_personas]
+        if train_speaker in persona_names:
+            role_mapping = build_role_mapping(persona_names, train_speaker=train_speaker)
+
+    points = include_points.strip() if include_points else None
+
     for i in range(n):
         if enable_variation and i > 0 and n > 1:
             try:
@@ -1286,6 +1362,8 @@ def generate_handler(
             scenario=current_scenario, style=current_style,
             backend=backend,
             max_new_tokens=int(max_new_tokens),
+            include_points=points,
+            role_mapping=role_mapping,
         )
         if not turns:
             failures += 1
@@ -1482,8 +1560,17 @@ def build_ui() -> gr.Blocks:
                     choices=list(PRESETS.keys()),
                     value=list(PRESETS.keys())[0],
                     label="Preset",
-                    info="Pick a curated cast or keep Custom and fill in your own.",
+                    info="Pick a curated cast, write your own, or use a creative brief below.",
                 )
+                with gr.Row(elem_id="cdg-brief-row"):
+                    brief = gr.Textbox(
+                        value="", label="Or paste a creative brief",
+                        placeholder='e.g. "Sherlock and Watson debate AI surveillance"',
+                        scale=3,
+                    )
+                    brainstorm_btn = gr.Button(
+                        "Brainstorm", elem_id="cdg-brainstorm-btn", scale=1,
+                    )
                 with gr.Row():
                     persona1 = gr.Textbox(value="Alice", label="Name 1", scale=1)
                     persona2 = gr.Textbox(value="Bob", label="Name 2", scale=1)
@@ -1503,6 +1590,13 @@ def build_ui() -> gr.Blocks:
                     placeholder="Carol | A skeptical scientist\nDave | An eager intern",
                     lines=3,
                 )
+                train_speaker = gr.Dropdown(
+                    choices=["auto", "Alice", "Bob"],
+                    value="auto",
+                    label="Train speaker (which speaker = gpt role)",
+                    info="The 'gpt' role is what your model learns to imitate. Auto: first = human, rest = gpt.",
+                    allow_custom_value=True,
+                )
 
                 gr.HTML(
                     '<div class="cdg-section"><div class="heading">'
@@ -1513,6 +1607,11 @@ def build_ui() -> gr.Blocks:
                 with gr.Row():
                     scenario = gr.Textbox(value="a quiet coffee shop", label="Scenario", scale=1)
                     style = gr.Textbox(value="Casual and curious", label="Style", scale=1)
+                include_points = gr.Textbox(
+                    value="", label="Must-cover points (optional)",
+                    info="Comma-separated points the dialogue must address.",
+                    placeholder="e.g. attention mechanism, embeddings, training cost",
+                )
 
                 gr.HTML(
                     '<div class="cdg-section"><div class="heading">'
@@ -1593,7 +1692,7 @@ def build_ui() -> gr.Blocks:
             persona1, persona1_desc, persona2, persona2_desc,
             topic, scenario, style, max_new_tokens,
             num_examples, enable_variation, dedup_threshold,
-            extra_personas,
+            extra_personas, train_speaker, include_points,
         ]
         outputs = [status_md, metrics_md, preview_md, file_out, metrics_state]
 
@@ -1603,6 +1702,17 @@ def build_ui() -> gr.Blocks:
             inputs=[preset_dropdown],
             outputs=[persona1, persona1_desc, persona2, persona2_desc,
                      extra_personas, topic, scenario, style],
+        )
+
+        # Brainstorm button → LLM populates persona/scene fields from brief
+        brainstorm_btn.click(
+            lambda: '<em style="color:var(--ink-soft);font-family:var(--serif)">Asking the model to brainstorm…</em>',
+            outputs=[fix_status],
+        ).then(
+            brainstorm_handler,
+            inputs=[backend_kind, model_id, api_base_url, api_key, load_in_4bit, brief],
+            outputs=[persona1, persona1_desc, persona2, persona2_desc,
+                     topic, scenario, style, fix_status],
         )
 
         # Auto-fix issues → run every applicable fix based on latest metrics
@@ -1624,6 +1734,18 @@ def build_ui() -> gr.Blocks:
                 fix_status,
             ],
         )
+
+        # When persona names change, refresh the train_speaker dropdown choices
+        def _refresh_train_speaker_choices(p1, p2, extras):
+            extras_parsed = _parse_extra_personas(extras)
+            names = ["auto"] + [n for n in [p1, p2] if n.strip()] + [n for n, _ in extras_parsed]
+            return gr.update(choices=names, value="auto" if "auto" in names else names[0])
+        for component in (persona1, persona2, extra_personas):
+            component.change(
+                _refresh_train_speaker_choices,
+                inputs=[persona1, persona2, extra_personas],
+                outputs=[train_speaker],
+            )
 
         generate_btn.click(
             lambda: (
