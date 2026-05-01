@@ -270,6 +270,35 @@ body { background: var(--paper) !important; color: var(--ink) !important; font-f
 #cdg-generate-btn button:hover { background: var(--accent) !important; }
 #cdg-generate-btn button:active { transform: translateY(1px); }
 
+/* Auto-fix button: vermillion outline, secondary tone */
+#cdg-fix-row { margin: 8px 0 4px 0; align-items: center; }
+#cdg-fix-btn,
+#cdg-fix-btn button {
+    background: transparent !important;
+    color: var(--accent) !important;
+    border: 1px solid var(--accent) !important;
+    border-radius: 0 !important;
+    font-family: var(--mono) !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.14em !important;
+    text-transform: uppercase !important;
+    padding: 8px 14px !important;
+    cursor: pointer;
+    width: auto !important;
+    transition: background 160ms ease, color 160ms ease;
+}
+#cdg-fix-btn button:hover {
+    background: var(--accent) !important;
+    color: var(--paper) !important;
+}
+#cdg-fix-status {
+    font-family: var(--sans);
+    font-size: 12px;
+    color: var(--ink-soft);
+    padding: 0 12px !important;
+}
+
 /* File component: minimal */
 .gradio-container .file-preview,
 .gradio-container [data-testid="file"] {
@@ -616,6 +645,116 @@ def _format_preview(conversations: list, limit: int = 3) -> str:
             f"*…and {len(conversations) - limit} more in the JSONL download.*"
         )
     return "\n\n".join(parts)
+
+
+_FIX_SYSTEM_PROMPT = (
+    "You are an expert dialogue writer. Your task is to rewrite persona "
+    "descriptions so that each character sounds DRAMATICALLY different from "
+    "the others — different vocabulary, age, energy, stance, sentence length, "
+    "rhetorical habits. Keep their core identities and names. Be specific and "
+    "concrete; avoid generic adjectives like 'friendly' or 'curious'. "
+    "Return ONLY the rewritten descriptions, one per line, exactly in this "
+    "format with no commentary, headers, or markdown:\n"
+    "Name => description"
+)
+
+
+def _fix_personas_messages(personas: list) -> list:
+    """Build chat messages for a persona-distinctness rewrite."""
+    persona_block = "\n".join(f"- {n}: {d}" for n, d in personas)
+    return [
+        {"role": "system", "content": _FIX_SYSTEM_PROMPT},
+        {"role": "user", "content": (
+            "Current personas — they currently sound too similar to each other:\n\n"
+            f"{persona_block}\n\n"
+            "Rewrite each so they contrast sharply. One per line. "
+            "Format: Name => description"
+        )},
+    ]
+
+
+def _parse_rewritten_personas(text: str, original_names: list) -> dict:
+    """Parse 'Name => description' lines, return dict of original-name → new desc."""
+    out = {}
+    if not text:
+        return out
+    name_set = {n.lower(): n for n in original_names}
+    for line in text.splitlines():
+        line = line.strip().lstrip("-•*").strip()
+        if "=>" not in line:
+            continue
+        name, _, desc = line.partition("=>")
+        name = name.strip().rstrip(":").strip()
+        desc = desc.strip()
+        if name and desc:
+            orig = name_set.get(name.lower())
+            if orig is not None:
+                out[orig] = desc
+    return out
+
+
+def fix_personas_handler(
+    backend_kind: str,
+    model_id: str,
+    api_base_url: str,
+    api_key: str,
+    load_in_4bit: bool,
+    persona1: str,
+    persona1_desc: str,
+    persona2: str,
+    persona2_desc: str,
+    extra_personas: str,
+):
+    """Rewrite persona descriptions via the configured LLM. Returns
+    (new_persona1_desc, new_persona2_desc, new_extra_personas, status_html)."""
+    try:
+        backend = build_backend(
+            kind=backend_kind, model_id=model_id,
+            load_in_4bit=load_in_4bit,
+            api_base_url=api_base_url, api_key=api_key or None,
+        )
+    except Exception as exc:
+        return (
+            persona1_desc, persona2_desc, extra_personas,
+            _error_block(f"Failed to build backend: {exc}"),
+        )
+
+    extras = _parse_extra_personas(extra_personas)
+    full = [(persona1, persona1_desc or ""), (persona2, persona2_desc or "")]
+    full = full + extras
+    full = [(n, d) for n, d in full if n.strip()]
+    if not full:
+        return (
+            persona1_desc, persona2_desc, extra_personas,
+            _error_block("No personas to rewrite."),
+        )
+
+    text = backend.complete(
+        _fix_personas_messages(full),
+        max_new_tokens=600, temperature=0.9,
+    )
+    if not text:
+        return (
+            persona1_desc, persona2_desc, extra_personas,
+            _error_block("LLM returned no text — check the server."),
+        )
+
+    rewrites = _parse_rewritten_personas(text, [n for n, _ in full])
+    if not rewrites:
+        return (
+            persona1_desc, persona2_desc, extra_personas,
+            _error_block("Couldn't parse the rewrite. Try again."),
+        )
+
+    new_p1 = rewrites.get(persona1, persona1_desc)
+    new_p2 = rewrites.get(persona2, persona2_desc)
+    new_extras = "\n".join(
+        f"{n} | {rewrites.get(n, d)}" for n, d in extras
+    )
+    return (
+        new_p1, new_p2, new_extras,
+        _success_block(f"Rewrote {len(rewrites)} persona description(s). Re-generate to see the impact."),
+    )
 
 
 PRESETS = {
@@ -1254,6 +1393,15 @@ def build_ui() -> gr.Blocks:
                     elem_id="cdg-metrics",
                 )
 
+                with gr.Row(elem_id="cdg-fix-row"):
+                    fix_btn = gr.Button(
+                        "Auto-fix personas",
+                        elem_id="cdg-fix-btn",
+                    )
+                    fix_status = gr.Markdown(
+                        value="", elem_id="cdg-fix-status",
+                    )
+
                 gr.HTML(
                     '<div class="cdg-section" style="margin-top:14px;margin-bottom:6px"><div class="heading">'
                     '<span class="num">C</span><span class="name">Dataset</span>'
@@ -1290,6 +1438,19 @@ def build_ui() -> gr.Blocks:
             inputs=[preset_dropdown],
             outputs=[persona1, persona1_desc, persona2, persona2_desc,
                      extra_personas, topic, scenario, style],
+        )
+
+        # Auto-fix personas → call LLM, rewrite descriptions
+        fix_btn.click(
+            lambda: '<em style="color:var(--ink-soft);font-family:var(--serif)">Asking the model to rewrite personas…</em>',
+            outputs=[fix_status],
+        ).then(
+            fix_personas_handler,
+            inputs=[
+                backend_kind, model_id, api_base_url, api_key, load_in_4bit,
+                persona1, persona1_desc, persona2, persona2_desc, extra_personas,
+            ],
+            outputs=[persona1_desc, persona2_desc, extra_personas, fix_status],
         )
 
         generate_btn.click(

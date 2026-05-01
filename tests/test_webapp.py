@@ -290,6 +290,90 @@ class TestGenerateHandlerNSpeaker:
         assert "drop" in low
 
 
+class TestFixPersonas:
+    def test_parse_rewritten_personas_picks_matching_names(self):
+        from webapp import _parse_rewritten_personas
+        text = (
+            "Alice => A grizzled chief engineer with cynical humor and clipped sentences.\n"
+            "Bob => A buoyant intern who interrupts with metaphors from skateboarding."
+        )
+        result = _parse_rewritten_personas(text, ["Alice", "Bob"])
+        assert "Alice" in result
+        assert "Bob" in result
+        assert "grizzled" in result["Alice"]
+        assert "skateboarding" in result["Bob"]
+
+    def test_parse_rewritten_personas_skips_non_matching_names(self):
+        from webapp import _parse_rewritten_personas
+        text = "Carol => A sarcastic critic.\nAlice => Updated."
+        result = _parse_rewritten_personas(text, ["Alice", "Bob"])
+        assert result == {"Alice": "Updated."}
+
+    def test_parse_rewritten_personas_handles_bullet_prefixes(self):
+        from webapp import _parse_rewritten_personas
+        text = "- Alice => Sharp and terse.\n• Bob => Verbose and warm."
+        result = _parse_rewritten_personas(text, ["Alice", "Bob"])
+        assert result["Alice"] == "Sharp and terse."
+        assert result["Bob"] == "Verbose and warm."
+
+    def test_fix_personas_handler_rewrites_descriptions(self, monkeypatch):
+        from webapp import fix_personas_handler
+
+        backend = MagicMock()
+        backend.complete.return_value = (
+            "Alice => A wry, no-nonsense senior with caustic wit.\n"
+            "Bob => An over-caffeinated rookie who quotes movies."
+        )
+        _patch_build_backend(monkeypatch, backend)
+
+        new_p1d, new_p2d, new_extras, status = fix_personas_handler(
+            backend_kind="openai", model_id="m",
+            api_base_url="http://x/v1", api_key="k", load_in_4bit=False,
+            persona1="Alice", persona1_desc="A friendly engineer",
+            persona2="Bob", persona2_desc="A curious student",
+            extra_personas="",
+        )
+        assert "wry" in new_p1d
+        assert "rookie" in new_p2d
+        assert "rewrote" in status.lower() or "done" in status.lower()
+
+    def test_fix_personas_handler_rewrites_extras(self, monkeypatch):
+        from webapp import fix_personas_handler
+
+        backend = MagicMock()
+        backend.complete.return_value = (
+            "Alice => Sharp.\nBob => Soft.\nCarol => Manic."
+        )
+        _patch_build_backend(monkeypatch, backend)
+
+        _, _, new_extras, _ = fix_personas_handler(
+            backend_kind="openai", model_id="m",
+            api_base_url="http://x/v1", api_key="k", load_in_4bit=False,
+            persona1="Alice", persona1_desc="x",
+            persona2="Bob", persona2_desc="y",
+            extra_personas="Carol | Original",
+        )
+        assert "Carol | Manic" in new_extras
+
+    def test_fix_personas_handler_returns_originals_on_backend_failure(self, monkeypatch):
+        from webapp import fix_personas_handler
+        def boom(**kw):
+            raise RuntimeError("connection refused")
+        monkeypatch.setattr("webapp.build_backend", boom)
+
+        new_p1d, new_p2d, new_extras, status = fix_personas_handler(
+            backend_kind="openai", model_id="m",
+            api_base_url="", api_key="", load_in_4bit=False,
+            persona1="Alice", persona1_desc="ORIGINAL_P1",
+            persona2="Bob", persona2_desc="ORIGINAL_P2",
+            extra_personas="Carol | ORIGINAL_C",
+        )
+        assert new_p1d == "ORIGINAL_P1"
+        assert new_p2d == "ORIGINAL_P2"
+        assert new_extras == "Carol | ORIGINAL_C"
+        assert "error" in status.lower() or "fail" in status.lower()
+
+
 class TestPresets:
     def test_presets_include_custom_and_at_least_two_examples(self):
         from webapp import PRESETS
