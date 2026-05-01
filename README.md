@@ -376,13 +376,55 @@ When `--backend openai` is set, `--load-in-4bit` is silently ignored (quantizati
 
 ## Web interface
 
-A minimal browser UI is available for one-off generation without writing a CLI invocation. It supports both backends (`hf` and `openai`).
+A full Gradio dashboard is available for interactive generation, evaluation, and dataset packaging.
 
 ```bash
 python webapp.py
 ```
 
-This launches a local Gradio app (default `http://127.0.0.1:7860`). Pick the backend, fill in two personas + topic/scenario/style, and click Generate. The form mirrors the CLI's manual mode — the same `--backend openai` recipes for LM Studio and Ollama work here too; just paste the same URL and model ID into the form.
+Opens at `http://127.0.0.1:7860`. Set defaults via env vars: `CDG_BACKEND`, `CDG_BASE_URL`, `CDG_MODEL_ID`.
+
+![Empty dashboard](docs/screenshots/dashboard-empty.png)
+
+### What the dashboard does
+
+| Panel | Purpose |
+|---|---|
+| **Backend** | Choose `hf` (local transformers) or `openai` (any OpenAI-compatible server). Set base URL, API key, model id, max-new-tokens, 4-bit quantization. |
+| **Personas** | Pick a curated preset, paste a creative brief and let the model brainstorm a cast, or write your own. Two name+description fields plus an "Add more" textarea for N-speaker conversations. A **Train speaker** dropdown picks which speaker maps to the `gpt` role for fine-tuning. |
+| **Scene** | Topic, scenario, style. Optional must-cover points. |
+| **Batch** | Number of conversations (1–50), per-example variation toggle, near-duplicate dedup threshold. |
+| **Run status / Diversity metrics** | After Generate, the right pane shows healthy/needs-attention headline, stat grid of metrics with their **targets** (effective uniqueness, distinct-2, topic diversity, speaker distinctness, turn coherence, self-repetition), and plain-English recommendations when something misses. |
+| **Auto-fix issues** | One-click dispatcher that applies every applicable fix: rewrites personas for orthogonal voice, broadens topic, sharpens scene, toggles variation, drops max-tokens — based on which metrics failed. |
+| **Dataset** | Downloadable ShareGPT JSONL, ready for fine-tuning. |
+| **Preview** | First three generated conversations rendered inline; full batch in the JSONL. |
+
+### Creative brief workflow
+
+![Brainstorm from a brief](docs/screenshots/brainstorm-success.png)
+
+Paste a one-line idea like `"A grizzled samurai mentors a sarcastic teenage hacker about honor in the digital age"`, click **Brainstorm**, and the model fills in personas, topic, scenario, and style. Edit if needed, then click Generate.
+
+### Metrics with targets, not just numbers
+
+![Healthy metrics](docs/screenshots/metrics-healthy.png)
+
+Each stat shows actual value vs. target with traffic-light coloring. Plain-English headline names the failing dimension when something's off ("NEEDS ATTENTION: distinct voices"). Recommendations explain how to fix — and the Auto-fix button applies them.
+
+### N-speaker conversations
+
+The Sci-fi crew preset packs four characters (captain, archaeologist, ship AI, engineer) into one conversation. Use the "Add more" textarea (`Name | Description` per line) to add as many speakers as you want.
+
+### What's CLI-only
+
+These features aren't in the webapp; use `generate.py` instead:
+
+- **`--continue-from data.jsonl`** — extend an existing conversation
+- **`--random-pairings`** with `--character-pool` / `--persona-desc-pool` YAML pools
+- **`--upload-to-hub REPO_ID`** — push the dataset to HuggingFace Hub
+- **`--persona1-search-term` / `--persona2-search-term`** — DuckDuckGo persona context for creative brief mode
+- **`--role-mapping "Name1=human,Name2=gpt"`** — manual role mapping (the webapp uses the simpler `Train speaker` dropdown)
+- **`batch_generate.py examples/batch_*.yaml`** — batch jobs with mixed modes
 
 ## For Contributors
 
