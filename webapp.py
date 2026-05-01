@@ -648,13 +648,19 @@ def _format_preview(conversations: list, limit: int = 3) -> str:
 
 
 _FIX_SYSTEM_PROMPT = (
-    "You are an expert dialogue writer. Your task is to rewrite persona "
-    "descriptions so that each character sounds DRAMATICALLY different from "
-    "the others — different vocabulary, age, energy, stance, sentence length, "
-    "rhetorical habits. Keep their core identities and names. Be specific and "
-    "concrete; avoid generic adjectives like 'friendly' or 'curious'. "
-    "Return ONLY the rewritten descriptions, one per line, exactly in this "
-    "format with no commentary, headers, or markdown:\n"
+    "You are a dialogue coach. Your job is to rewrite persona descriptions so "
+    "their VOICES will sound orthogonal in dialogue — measurably different on "
+    "concrete axes. Pick a different axis for each persona from this list:\n"
+    "  - terse, clipped sentences vs. ornate, subordinate clauses\n"
+    "  - clinical / technical vocabulary vs. emotional / metaphorical\n"
+    "  - decisive declarations vs. hedged questions\n"
+    "  - formal register vs. slangy / informal\n"
+    "  - skeptical / contrarian vs. enthusiastic / agreeable\n"
+    "Each persona MUST land on a DIFFERENT axis from the others. "
+    "Keep the character's name and core identity. Avoid flowery prose like "
+    "'eyes that never leave the truth' — be concrete about HOW they speak.\n\n"
+    "Return ONLY rewritten descriptions, one per line, in EXACTLY this format "
+    "with no commentary, headers, or markdown:\n"
     "Name => description"
 )
 
@@ -662,13 +668,17 @@ _FIX_SYSTEM_PROMPT = (
 def _fix_personas_messages(personas: list) -> list:
     """Build chat messages for a persona-distinctness rewrite."""
     persona_block = "\n".join(f"- {n}: {d}" for n, d in personas)
+    n = len(personas)
     return [
         {"role": "system", "content": _FIX_SYSTEM_PROMPT},
         {"role": "user", "content": (
-            "Current personas — they currently sound too similar to each other:\n\n"
+            f"These {n} personas currently sound too similar in dialogue:\n\n"
             f"{persona_block}\n\n"
-            "Rewrite each so they contrast sharply. One per line. "
-            "Format: Name => description"
+            f"Rewrite each so they sit on DIFFERENT speech axes. For example, if "
+            f"one is terse and clinical, another might be verbose and emotional, "
+            f"another slangy and skeptical. Be specific about sentence length, "
+            f"vocabulary register, and rhetorical habits. Keep names unchanged.\n\n"
+            f"Format: Name => description (one per line, no other text)"
         )},
     ]
 
