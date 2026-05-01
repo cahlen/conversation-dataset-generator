@@ -703,6 +703,160 @@ def _parse_rewritten_personas(text: str, original_names: list) -> dict:
     return out
 
 
+def _fix_topic_messages(topic: str) -> list:
+    return [
+        {"role": "system", "content": (
+            "You rewrite conversation topics to be broader and richer, suitable for "
+            "generating a diverse batch of dialogues. Keep the spirit of the original. "
+            "Return ONE rewritten topic line, no commentary."
+        )},
+        {"role": "user", "content": (
+            f"Current topic: {topic}\n\n"
+            "Rewrite it as a broader theme that supports varied conversations. "
+            "Return only the new topic, no quotes, no labels."
+        )},
+    ]
+
+
+def auto_fix_handler(
+    backend_kind: str,
+    model_id: str,
+    api_base_url: str,
+    api_key: str,
+    load_in_4bit: bool,
+    persona1: str,
+    persona1_desc: str,
+    persona2: str,
+    persona2_desc: str,
+    extra_personas: str,
+    topic: str,
+    scenario: str,
+    style: str,
+    max_new_tokens: int,
+    enable_variation: bool,
+    dedup_threshold: float,
+    metrics_state,
+):
+    """Apply every applicable fix based on the latest metrics. Returns:
+    (new_p1_desc, new_p2_desc, new_extra_personas, new_topic, new_scenario,
+     new_style, new_max_new_tokens, new_enable_variation, status_html)."""
+    metrics = metrics_state if isinstance(metrics_state, dict) else {}
+    if not metrics or metrics.get("num_conversations", 0) < 2:
+        return (
+            persona1_desc, persona2_desc, extra_personas, topic, scenario, style,
+            max_new_tokens, enable_variation,
+            _error_block("No recent metrics — generate a batch first, then click Auto-fix."),
+        )
+
+    new_p1_desc = persona1_desc
+    new_p2_desc = persona2_desc
+    new_extras = extra_personas
+    new_topic = topic
+    new_scenario = scenario
+    new_style = style
+    new_max = max_new_tokens
+    new_variation = enable_variation
+    fixes_applied = []
+
+    # --- non-LLM fixes (always cheap, do first) ---
+
+    if metrics.get("distinct_2", 1.0) < 0.70 and not enable_variation:
+        new_variation = True
+        fixes_applied.append("enabled topic variation")
+
+    if metrics.get("self_repetition_rate", 0) > 0.10:
+        new_max = max(384, int(max_new_tokens * 0.75))
+        fixes_applied.append(f"lowered max-new-tokens to {new_max}")
+
+    # --- LLM-driven fixes ---
+
+    needs_persona_rewrite = metrics.get("speaker_distinctiveness", 1.0) < 0.30
+    needs_topic_rewrite = metrics.get("topic_diversity", 1.0) < 0.50
+    coherence = metrics.get("turn_coherence")
+    needs_scene_rewrite = coherence is not None and coherence < 0.30
+
+    if needs_persona_rewrite or needs_topic_rewrite or needs_scene_rewrite:
+        try:
+            backend = build_backend(
+                kind=backend_kind, model_id=model_id,
+                load_in_4bit=load_in_4bit,
+                api_base_url=api_base_url, api_key=api_key or None,
+            )
+        except Exception as exc:
+            status_text = (
+                f"Applied {len(fixes_applied)} non-LLM fix(es). "
+                f"Couldn't build backend for the rest: {exc}"
+            ) if fixes_applied else f"Failed to build backend: {exc}"
+            return (
+                new_p1_desc, new_p2_desc, new_extras, new_topic, new_scenario,
+                new_style, new_max, new_variation,
+                _error_block(status_text),
+            )
+
+        if needs_persona_rewrite:
+            extras_list = _parse_extra_personas(extra_personas)
+            full = [(persona1, persona1_desc or ""), (persona2, persona2_desc or "")] + extras_list
+            full = [(n, d) for n, d in full if n.strip()]
+            text = backend.complete(_fix_personas_messages(full), max_new_tokens=600, temperature=0.9)
+            rewrites = _parse_rewritten_personas(text or "", [n for n, _ in full])
+            if rewrites:
+                new_p1_desc = rewrites.get(persona1, new_p1_desc)
+                new_p2_desc = rewrites.get(persona2, new_p2_desc)
+                new_extras = "\n".join(f"{n} | {rewrites.get(n, d)}" for n, d in extras_list)
+                fixes_applied.append(f"rewrote {len(rewrites)} persona description(s)")
+
+        if needs_topic_rewrite:
+            text = backend.complete(_fix_topic_messages(topic), max_new_tokens=120, temperature=0.9)
+            if text:
+                cleaned = text.strip().splitlines()[0].strip().strip('"').strip("'")
+                if cleaned and cleaned.lower() != topic.lower():
+                    new_topic = cleaned
+                    fixes_applied.append("broadened topic")
+
+        if needs_scene_rewrite:
+            scene_msgs = [
+                {"role": "system", "content": (
+                    "You sharpen scene descriptions so dialogue feels grounded and "
+                    "characters react to the same situation. Return TWO lines: "
+                    "Scenario: <new>\nStyle: <new>"
+                )},
+                {"role": "user", "content": (
+                    f"Topic: {topic}\nScenario: {scenario}\nStyle: {style}\n\n"
+                    "Rewrite scenario with concrete sensory anchors and constraints, "
+                    "and tighten the style guidance."
+                )},
+            ]
+            text = backend.complete(scene_msgs, max_new_tokens=200, temperature=0.8)
+            if text:
+                lines = [l.strip() for l in text.splitlines() if ":" in l]
+                for line in lines:
+                    label, _, val = line.partition(":")
+                    val = val.strip().strip('"').strip("'")
+                    if label.strip().lower().startswith("scenario") and val:
+                        new_scenario = val
+                    elif label.strip().lower().startswith("style") and val:
+                        new_style = val
+                if new_scenario != scenario or new_style != style:
+                    fixes_applied.append("sharpened scene description")
+
+    if not fixes_applied:
+        return (
+            new_p1_desc, new_p2_desc, new_extras, new_topic, new_scenario,
+            new_style, new_max, new_variation,
+            _success_block(
+                "Targets already met (or remaining issues are server-side, "
+                "like temperature). Nothing to apply."
+            ),
+        )
+
+    summary = "; ".join(fixes_applied) + ". Re-generate to see the impact."
+    return (
+        new_p1_desc, new_p2_desc, new_extras, new_topic, new_scenario,
+        new_style, new_max, new_variation,
+        _success_block(summary),
+    )
+
+
 def fix_personas_handler(
     backend_kind: str,
     model_id: str,
@@ -1092,7 +1246,7 @@ def generate_handler(
             api_base_url=api_base_url, api_key=api_key or None,
         )
     except Exception as exc:
-        return _error_block(f"Failed to build backend: {exc}"), "", "", None
+        return _error_block(f"Failed to build backend: {exc}"), "", "", None, {}
 
     dedup_model = _load_dedup_model(threshold) if threshold is not None else None
     dedup_priors: list = []
@@ -1156,7 +1310,7 @@ def generate_handler(
                 "No conversations were produced. Common causes: model not found, "
                 "wrong API URL, server not running. Check the terminal."
             ),
-            "", "", None,
+            "", "", None, {},
         )
 
     elapsed = time.monotonic() - started
@@ -1180,7 +1334,7 @@ def generate_handler(
     status = _success_block(" · ".join(summary_bits))
 
     preview = _format_preview(conversations, limit=3)
-    return status, metrics_md, preview, jsonl_path
+    return status, metrics_md, preview, jsonl_path, metrics
 
 
 # ----------------------------- UI ---------------------------------------------
@@ -1403,9 +1557,10 @@ def build_ui() -> gr.Blocks:
                     elem_id="cdg-metrics",
                 )
 
+                metrics_state = gr.State(value={})
                 with gr.Row(elem_id="cdg-fix-row"):
                     fix_btn = gr.Button(
-                        "Auto-fix personas",
+                        "Auto-fix issues",
                         elem_id="cdg-fix-btn",
                     )
                     fix_status = gr.Markdown(
@@ -1440,7 +1595,7 @@ def build_ui() -> gr.Blocks:
             num_examples, enable_variation, dedup_threshold,
             extra_personas,
         ]
-        outputs = [status_md, metrics_md, preview_md, file_out]
+        outputs = [status_md, metrics_md, preview_md, file_out, metrics_state]
 
         # Preset → fill form
         preset_dropdown.change(
@@ -1450,23 +1605,30 @@ def build_ui() -> gr.Blocks:
                      extra_personas, topic, scenario, style],
         )
 
-        # Auto-fix personas → call LLM, rewrite descriptions
+        # Auto-fix issues → run every applicable fix based on latest metrics
         fix_btn.click(
-            lambda: '<em style="color:var(--ink-soft);font-family:var(--serif)">Asking the model to rewrite personas…</em>',
+            lambda: '<em style="color:var(--ink-soft);font-family:var(--serif)">Diagnosing issues and applying fixes…</em>',
             outputs=[fix_status],
         ).then(
-            fix_personas_handler,
+            auto_fix_handler,
             inputs=[
                 backend_kind, model_id, api_base_url, api_key, load_in_4bit,
                 persona1, persona1_desc, persona2, persona2_desc, extra_personas,
+                topic, scenario, style, max_new_tokens, enable_variation,
+                dedup_threshold, metrics_state,
             ],
-            outputs=[persona1_desc, persona2_desc, extra_personas, fix_status],
+            outputs=[
+                persona1_desc, persona2_desc, extra_personas,
+                topic, scenario, style,
+                max_new_tokens, enable_variation,
+                fix_status,
+            ],
         )
 
         generate_btn.click(
             lambda: (
                 '<div class="cdg-loading">Generating dataset… this can take a while for large batches.</div>',
-                "", "", None,
+                "", "", None, {},
             ),
             outputs=outputs,
         ).then(generate_handler, inputs=inputs, outputs=outputs)

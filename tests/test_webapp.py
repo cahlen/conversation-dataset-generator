@@ -30,7 +30,7 @@ class TestGenerateHandlerSingle:
         backend.complete.return_value = "Alice: Hello there\nBob: Hi back"
         _patch_build_backend(monkeypatch, backend)
 
-        status, metrics, preview, file_path = generate_handler(
+        status, metrics, preview, file_path, _state = generate_handler(
             backend_kind="openai", model_id="m",
             api_base_url="http://x/v1", api_key="k", load_in_4bit=False,
             persona1="Alice", persona1_desc="A friendly engineer",
@@ -52,7 +52,7 @@ class TestGenerateHandlerSingle:
         backend.complete.return_value = None
         _patch_build_backend(monkeypatch, backend)
 
-        status, metrics, preview, file_path = generate_handler(
+        status, metrics, preview, file_path, _state = generate_handler(
             backend_kind="openai", model_id="m",
             api_base_url="http://x/v1", api_key="", load_in_4bit=False,
             persona1="A", persona1_desc="a", persona2="B", persona2_desc="b",
@@ -70,7 +70,7 @@ class TestGenerateHandlerSingle:
             raise RuntimeError("missing api_base_url")
         monkeypatch.setattr("webapp.build_backend", boom)
 
-        status, metrics, preview, file_path = generate_handler(
+        status, metrics, preview, file_path, _state = generate_handler(
             backend_kind="openai", model_id="m",
             api_base_url="", api_key="", load_in_4bit=False,
             persona1="A", persona1_desc="a", persona2="B", persona2_desc="b",
@@ -118,7 +118,7 @@ class TestGenerateHandlerBulk:
         backend.complete.return_value = "Alice: hi {n}\nBob: hello"
         _patch_build_backend(monkeypatch, backend)
 
-        status, metrics, preview, file_path = generate_handler(
+        status, metrics, preview, file_path, _state = generate_handler(
             backend_kind="openai", model_id="m",
             api_base_url="http://x/v1", api_key="k", load_in_4bit=False,
             persona1="Alice", persona1_desc="A",
@@ -146,7 +146,7 @@ class TestGenerateHandlerBulk:
             lambda path: {"distinct_1": 0.42, "vendi_score": 1.7, "num_conversations": 2},
         )
 
-        status, metrics, preview, file_path = generate_handler(
+        status, metrics, preview, file_path, _state = generate_handler(
             backend_kind="openai", model_id="m",
             api_base_url="http://x/v1", api_key="k", load_in_4bit=False,
             persona1="Alice", persona1_desc="a", persona2="Bob", persona2_desc="b",
@@ -180,7 +180,7 @@ class TestGenerateHandlerBulk:
             lambda path: {"num_conversations": 1, "distinct_1": 0.0},
         )
 
-        status, metrics, preview, file_path = generate_handler(
+        status, metrics, preview, file_path, _state = generate_handler(
             backend_kind="openai", model_id="m",
             api_base_url="http://x/v1", api_key="k", load_in_4bit=False,
             persona1="A", persona1_desc="a", persona2="B", persona2_desc="b",
@@ -257,7 +257,7 @@ class TestGenerateHandlerNSpeaker:
         backend.complete.return_value = "anything"
         _patch_build_backend(monkeypatch, backend)
 
-        status, metrics, preview, file_path = generate_handler(
+        status, metrics, preview, file_path, _state = generate_handler(
             backend_kind="openai", model_id="m",
             api_base_url="http://x/v1", api_key="k", load_in_4bit=False,
             persona1="Alice", persona1_desc="A",
@@ -288,6 +288,76 @@ class TestGenerateHandlerNSpeaker:
         assert "vendi" in low
         assert "5" in md  # num_conversations
         assert "drop" in low
+
+
+class TestAutoFix:
+    """auto_fix_handler dispatches a fix per failing metric."""
+
+    def _base_kwargs(self):
+        return dict(
+            backend_kind="openai", model_id="m",
+            api_base_url="http://x/v1", api_key="k", load_in_4bit=False,
+            persona1="Alice", persona1_desc="A engineer",
+            persona2="Bob", persona2_desc="A student",
+            extra_personas="",
+            topic="weather", scenario="a cafe", style="Casual",
+            max_new_tokens=1024, enable_variation=False, dedup_threshold=0.0,
+        )
+
+    def test_no_metrics_means_nothing_to_fix(self):
+        from webapp import auto_fix_handler
+        result = auto_fix_handler(**self._base_kwargs(), metrics_state={})
+        assert len(result) == 9
+        status = result[-1].lower()
+        assert "metric" in status or "generate" in status or "first" in status
+
+    def test_low_distinct2_toggles_variation_on(self, monkeypatch):
+        from webapp import auto_fix_handler
+        backend = MagicMock()
+        backend.complete.return_value = ""
+        _patch_build_backend(monkeypatch, backend)
+        metrics = {"distinct_2": 0.40, "num_conversations": 5}
+        result = auto_fix_handler(**self._base_kwargs(), metrics_state=metrics)
+        assert result[7] is True
+
+    def test_high_self_repetition_lowers_max_tokens(self, monkeypatch):
+        from webapp import auto_fix_handler
+        backend = MagicMock()
+        backend.complete.return_value = ""
+        _patch_build_backend(monkeypatch, backend)
+        metrics = {"self_repetition_rate": 0.20, "num_conversations": 5}
+        result = auto_fix_handler(**self._base_kwargs(), metrics_state=metrics)
+        assert result[6] < 1024
+
+    def test_low_speaker_distinctness_rewrites_personas(self, monkeypatch):
+        from webapp import auto_fix_handler
+        backend = MagicMock()
+        backend.complete.return_value = "Alice => Sharp clinical voice.\nBob => Verbose emotional voice."
+        _patch_build_backend(monkeypatch, backend)
+        metrics = {"speaker_distinctiveness": 0.15, "num_conversations": 5}
+        result = auto_fix_handler(**self._base_kwargs(), metrics_state=metrics)
+        assert "clinical" in result[0].lower()
+        assert "verbose" in result[1].lower() or "emotional" in result[1].lower()
+
+    def test_low_topic_diversity_rewrites_topic(self, monkeypatch):
+        from webapp import auto_fix_handler
+        backend = MagicMock()
+        backend.complete.side_effect = ["A broad survey of seasonal patterns and human reactions to weather"]
+        _patch_build_backend(monkeypatch, backend)
+        metrics = {"topic_diversity": 0.30, "num_conversations": 5}
+        result = auto_fix_handler(**self._base_kwargs(), metrics_state=metrics)
+        assert result[3] != "weather"
+        assert len(result[3]) > 10
+
+    def test_status_summarizes_applied_fixes(self, monkeypatch):
+        from webapp import auto_fix_handler
+        backend = MagicMock()
+        backend.complete.return_value = "Alice => x\nBob => y"
+        _patch_build_backend(monkeypatch, backend)
+        metrics = {"speaker_distinctiveness": 0.15, "distinct_2": 0.40, "num_conversations": 5}
+        result = auto_fix_handler(**self._base_kwargs(), metrics_state=metrics)
+        status = result[-1].lower()
+        assert "persona" in status or "variation" in status or "fix" in status
 
 
 class TestFixPersonas:
