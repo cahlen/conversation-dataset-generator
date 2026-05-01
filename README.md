@@ -18,6 +18,8 @@ Requires Python 3.10+. For the default `--backend hf`, you'll also need an NVIDI
 
 ## Quick Start (Docker)
 
+![Dashboard via docker compose up](docs/screenshots/docker-compose-webapp.png)
+
 The default `docker compose up` launches the Gradio dashboard at [http://localhost:7860](http://localhost:7860):
 
 ```bash
