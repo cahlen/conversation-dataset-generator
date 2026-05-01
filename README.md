@@ -18,25 +18,47 @@ Requires Python 3.10+. For the default `--backend hf`, you'll also need an NVIDI
 
 ## Quick Start (Docker)
 
+![Dashboard via docker compose up](docs/screenshots/docker-compose-webapp.png)
+
+The default `docker compose up` launches the Gradio dashboard at [http://localhost:7860](http://localhost:7860):
+
 ```bash
-# Build (default CUDA 12.x — works on 30xx/40xx/50xx)
-docker build -t cdg .
+docker compose up
+```
 
-# Or build for CUDA 13.x (RTX 50xx with latest drivers)
-docker build --build-arg CUDA_VERSION=13.0.0 -t cdg .
+Point at any OpenAI-compatible server (LM Studio, Ollama, OpenAI itself) by setting env vars before launch:
 
-# Run
-docker run --gpus all -v $(pwd)/output:/app/output cdg \
+```bash
+CDG_BACKEND=openai \
+CDG_BASE_URL=http://host.docker.internal:11434/v1 \
+CDG_MODEL_ID=llama3.2:1b \
+docker compose up
+```
+
+If you'd rather run the CLI inside the container (one-off batch jobs, etc.):
+
+```bash
+docker compose run cdg python3 generate.py \
   --creative-brief "Two scientists argue about time travel" \
   --output-file output/data.jsonl
 ```
 
-Or with docker compose:
+Build manually if you don't want compose:
 
 ```bash
-docker compose run cdg \
-  --creative-brief "Two scientists argue about time travel" \
-  --output-file output/data.jsonl
+# Default CUDA 12.x — works on 30xx/40xx/50xx
+docker build -t cdg .
+
+# CUDA 13.x for RTX 50xx with latest drivers
+docker build --build-arg CUDA_VERSION=13.0.0 -t cdg .
+
+# Run the webapp (default)
+docker run --gpus all -p 7860:7860 -e CDG_HOST=0.0.0.0 \
+  -v $(pwd)/output:/app/output cdg
+
+# Or run the CLI (override the default command)
+docker run --gpus all -v $(pwd)/output:/app/output cdg \
+  python3 generate.py --creative-brief "..." --output-file output/data.jsonl
 ```
 
 ## Modes

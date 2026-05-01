@@ -1,6 +1,18 @@
 services:
   cdg:
     build: .
+    ports:
+      - "7860:7860"
+    environment:
+      # Bind Gradio to all interfaces inside the container so the host can reach it
+      CDG_HOST: "0.0.0.0"
+      # Default backend / model — override these (or pass --env-file) to point at
+      # an OpenAI-compatible server like LM Studio, Ollama, or OpenAI itself.
+      CDG_BACKEND: "${CDG_BACKEND:-hf}"
+      CDG_BASE_URL: "${CDG_BASE_URL:-http://localhost:1234/v1}"
+      CDG_MODEL_ID: "${CDG_MODEL_ID:-Qwen/Qwen2.5-7B-Instruct}"
+      # Pass through if the user wants to call the real OpenAI API
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
     deploy:
       resources:
         reservations:
@@ -8,3 +20,9 @@ services:
             - capabilities: [gpu]
     volumes:
       - ./output:/app/output
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7860/config"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s

@@ -1759,4 +1759,9 @@ def build_ui() -> gr.Blocks:
 
 
 if __name__ == "__main__":
-    build_ui().launch(theme=_theme(), css=CUSTOM_CSS)
+    host = os.environ.get("CDG_HOST", "127.0.0.1")
+    port = int(os.environ.get("CDG_PORT", "7860"))
+    build_ui().launch(
+        server_name=host, server_port=port,
+        theme=_theme(), css=CUSTOM_CSS,
+    )
