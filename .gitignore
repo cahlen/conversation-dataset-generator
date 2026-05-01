@@ -141,6 +141,9 @@ cython_debug/
 *.jsonl
 *.log
 
+# Git worktrees
+.worktrees/
+
 # Hugging Face cache directory
 .cache/ 
 

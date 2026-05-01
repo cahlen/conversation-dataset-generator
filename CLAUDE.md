@@ -41,17 +41,22 @@ python batch_generate.py examples/batch_mixed_modes.yaml
 # Evaluate generated data
 python evaluate.py conversations.jsonl
 python evaluate.py conversations.jsonl --no-embeddings    # skip embedding metrics
+
+# Web UI: full dashboard with brainstorm, presets, metrics with targets,
+# auto-fix dispatcher, JSONL download, and N-speaker support.
+# Defaults overridable via CDG_BACKEND, CDG_BASE_URL, CDG_MODEL_ID env vars.
+python webapp.py
 ```
 
 ## Testing
 
 ```bash
-pytest tests/ -v                                          # all 146 tests
+pytest tests/ -v                                          # all 243 tests
 pytest tests/test_parsing.py -v                           # one module
 pytest tests/test_parsing.py::TestParseVariationOutput -v # one class
 ```
 
-146 tests across 7 test files. No GPU required — LLM calls and embeddings are mocked.
+243 tests across 8 test files. No GPU required — LLM calls and embeddings are mocked.
 
 ## Architecture
 
@@ -66,6 +71,7 @@ pytest tests/test_parsing.py::TestParseVariationOutput -v # one class
 | `parsing.py` | Regex parsers: raw LLM text → ShareGPT turns (N-speaker), variation output, arg output |
 | `output.py` | JSONL serialization, dataset card templates, load conversation from JSONL |
 | `hub.py` | HuggingFace Hub upload (isolated, optional) |
+| `backend.py` | ChatBackend protocol + HFBackend (transformers) and OpenAIBackend (LM Studio / Ollama / OpenAI) implementations |
 | `character_pool.py` | YAML pool loading, validation, random group selection |
 | `web_search.py` | DuckDuckGo persona context search for creative brief mode |
 | `evaluation.py` | Intrinsic quality metrics (distinct-N, coherence, speaker distinctiveness) |
@@ -83,6 +89,10 @@ pytest tests/test_parsing.py::TestParseVariationOutput -v # one class
 ### Key Details
 
 - Default model: `Qwen/Qwen2.5-7B-Instruct`
+- Backends: `--backend hf` (default, local transformers) or `--backend openai` (OpenAI-compatible HTTP server). For openai, set `--api-base-url` (LM Studio default `http://localhost:1234/v1`, Ollama `http://localhost:11434/v1`) and optionally `--api-key`.
+- Dedup: `--dedup-threshold FLOAT` drops generated conversations with cosine similarity > threshold to any prior in the run (sentence-transformers `all-MiniLM-L6-v2`).
+- Vendi Score: `evaluation.py` reports the effective number of distinct conversations from the eigenvalue entropy of the embedding similarity matrix; closer to N = more diverse.
+- Webapp (`webapp.py`): exposes most CLI features via Gradio dashboard. Three handlers: `generate_handler` (bulk gen + dedup + variation + JSONL + metrics), `brainstorm_handler` (creative-brief → personas/scene), `auto_fix_handler` (per-recommendation dispatcher: rewrites personas/topic/scene, toggles variation, drops max-tokens). CLI-only: `--continue-from`, `--random-pairings`, `--upload-to-hub`, persona web-search context, batch_generate.py.
 - Default max tokens: 4096
 - N-speaker support: `--persona` (repeatable) or `--personas` YAML file
 - Role mapping: `--train-speaker "Name"` (that speaker = gpt, rest = human) or `--role-mapping "Name1=human,Name2=gpt"`

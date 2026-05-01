@@ -227,3 +227,256 @@ class TestLoadPersonasFromYaml:
         yaml_file.write_text("personas:\n  - name: X\n")
         with pytest.raises(ValueError):
             load_personas_from_yaml(str(yaml_file))
+
+
+class TestBackendFlags:
+    def test_backend_default_is_hf(self):
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test"])
+        assert args.backend == "hf"
+
+    def test_backend_can_be_openai(self):
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test", "--backend", "openai"])
+        assert args.backend == "openai"
+
+    def test_backend_rejects_unknown_choice(self):
+        parser = build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["--creative-brief", "test", "--backend", "vllm"])
+
+    def test_api_base_url_default(self):
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test"])
+        assert args.api_base_url == "http://localhost:1234/v1"
+
+    def test_api_base_url_custom(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "--creative-brief", "test",
+            "--api-base-url", "http://localhost:11434/v1",
+        ])
+        assert args.api_base_url == "http://localhost:11434/v1"
+
+    def test_api_key_default_is_none(self):
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test"])
+        assert args.api_key is None
+
+    def test_api_key_custom(self):
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test", "--api-key", "sk-xyz"])
+        assert args.api_key == "sk-xyz"
+
+
+from unittest.mock import MagicMock, patch
+
+
+class TestBuildBackendFromArgs:
+    def test_hf_backend(self, monkeypatch):
+        from conversation_dataset_generator.cli import build_backend_from_args
+        from conversation_dataset_generator.backend import HFBackend
+
+        fake_pipe = MagicMock()
+        fake_tok = MagicMock()
+        monkeypatch.setattr(
+            "conversation_dataset_generator.cli.load_model_and_pipeline",
+            lambda **kw: (fake_pipe, fake_tok),
+        )
+
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test"])
+        backend = build_backend_from_args(args)
+        assert isinstance(backend, HFBackend)
+
+    def test_hf_backend_passes_quantization_flag(self, monkeypatch):
+        from conversation_dataset_generator.cli import build_backend_from_args
+
+        captured = {}
+        def fake_load(**kw):
+            captured.update(kw)
+            return MagicMock(), MagicMock()
+        monkeypatch.setattr(
+            "conversation_dataset_generator.cli.load_model_and_pipeline", fake_load,
+        )
+
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test", "--load-in-4bit"])
+        build_backend_from_args(args)
+        assert captured["load_in_4bit"] is True
+
+    def test_openai_backend(self):
+        from conversation_dataset_generator.cli import build_backend_from_args
+        from conversation_dataset_generator.backend import OpenAIBackend
+
+        parser = build_parser()
+        args = parser.parse_args([
+            "--creative-brief", "test", "--backend", "openai",
+            "--api-base-url", "http://localhost:11434/v1",
+            "--api-key", "test-key",
+            "--model-id", "llama3.1",
+        ])
+        backend = build_backend_from_args(args)
+        assert isinstance(backend, OpenAIBackend)
+        assert backend.model_id == "llama3.1"
+
+    def test_openai_backend_falls_back_to_env_var(self, monkeypatch):
+        from conversation_dataset_generator.cli import build_backend_from_args
+        from conversation_dataset_generator.backend import OpenAIBackend
+
+        monkeypatch.setenv("OPENAI_API_KEY", "env-key")
+        parser = build_parser()
+        args = parser.parse_args([
+            "--creative-brief", "test", "--backend", "openai",
+        ])
+        backend = build_backend_from_args(args)
+        assert isinstance(backend, OpenAIBackend)
+        assert backend._client.api_key == "env-key"
+
+    def test_openai_backend_explicit_key_overrides_env(self, monkeypatch):
+        from conversation_dataset_generator.cli import build_backend_from_args
+        from conversation_dataset_generator.backend import OpenAIBackend
+
+        monkeypatch.setenv("OPENAI_API_KEY", "env-key")
+        parser = build_parser()
+        args = parser.parse_args([
+            "--creative-brief", "test", "--backend", "openai",
+            "--api-key", "explicit-key",
+        ])
+        backend = build_backend_from_args(args)
+        assert isinstance(backend, OpenAIBackend)
+        assert backend._client.api_key == "explicit-key"
+
+    def test_openai_backend_warns_when_model_id_is_hf_default(self, caplog):
+        from conversation_dataset_generator.cli import build_backend_from_args
+        parser = build_parser()
+        args = parser.parse_args([
+            "--creative-brief", "test", "--backend", "openai",
+        ])
+        with caplog.at_level("WARNING"):
+            build_backend_from_args(args)
+        assert any("model-id" in r.message.lower() for r in caplog.records)
+
+
+class TestDedupCheck:
+    """Internal helper: embed a generated conversation and decide if it's a duplicate."""
+
+    def test_first_conversation_is_not_duplicate_and_is_recorded(self):
+        import numpy as np
+        from conversation_dataset_generator.cli import _dedup_check
+        model = MagicMock()
+        model.encode.return_value = np.array([[1.0, 0.0, 0.0]])
+        priors = []
+        result = _dedup_check([{"value": "hi"}], model, priors, threshold=0.95)
+        assert result is False
+        assert len(priors) == 1
+
+    def test_near_duplicate_is_dropped_and_not_recorded(self):
+        import numpy as np
+        from conversation_dataset_generator.cli import _dedup_check
+        model = MagicMock()
+        model.encode.side_effect = [
+            np.array([[1.0, 0.0, 0.0]]),
+            np.array([[0.99, 0.01, 0.0]]),
+        ]
+        priors = []
+        _dedup_check([{"value": "first"}], model, priors, threshold=0.95)
+        result = _dedup_check([{"value": "near-dup"}], model, priors, threshold=0.95)
+        assert result is True
+        assert len(priors) == 1
+
+    def test_disabled_when_model_is_none(self):
+        from conversation_dataset_generator.cli import _dedup_check
+        result = _dedup_check([{"value": "hi"}], None, [], threshold=None)
+        assert result is False
+
+    def test_concatenates_turn_values_for_embedding(self):
+        import numpy as np
+        from conversation_dataset_generator.cli import _dedup_check
+        model = MagicMock()
+        model.encode.return_value = np.array([[1.0, 0.0]])
+        _dedup_check(
+            [{"value": "hello"}, {"value": "world"}],
+            model, [], threshold=0.95,
+        )
+        call_arg = model.encode.call_args[0][0]
+        assert "hello" in call_arg[0] and "world" in call_arg[0]
+
+
+class TestDedupFlag:
+    def test_dedup_threshold_default_is_none(self):
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test"])
+        assert args.dedup_threshold is None
+
+    def test_dedup_threshold_custom(self):
+        parser = build_parser()
+        args = parser.parse_args(["--creative-brief", "test", "--dedup-threshold", "0.92"])
+        assert args.dedup_threshold == pytest.approx(0.92)
+
+    def test_dedup_threshold_rejects_out_of_range(self):
+        parser = build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["--creative-brief", "test", "--dedup-threshold", "1.5"])
+
+
+class TestBuildBackend:
+    """Direct tests for build_backend(), the args-free helper.
+
+    build_backend() exists so the web UI (and any future caller) can construct
+    a backend from raw values without needing to fabricate an argparse Namespace.
+    build_backend_from_args() is now a thin wrapper around it.
+    """
+
+    def test_hf_kind(self, monkeypatch):
+        from conversation_dataset_generator.cli import build_backend
+        from conversation_dataset_generator.backend import HFBackend
+
+        fake_pipe = MagicMock()
+        fake_tok = MagicMock()
+        monkeypatch.setattr(
+            "conversation_dataset_generator.cli.load_model_and_pipeline",
+            lambda **kw: (fake_pipe, fake_tok),
+        )
+        backend = build_backend(kind="hf", model_id="qwen-7b")
+        assert isinstance(backend, HFBackend)
+
+    def test_hf_kind_passes_load_in_4bit(self, monkeypatch):
+        from conversation_dataset_generator.cli import build_backend
+
+        captured = {}
+        def fake_load(**kw):
+            captured.update(kw)
+            return MagicMock(), MagicMock()
+        monkeypatch.setattr(
+            "conversation_dataset_generator.cli.load_model_and_pipeline", fake_load,
+        )
+        build_backend(kind="hf", model_id="m", load_in_4bit=True)
+        assert captured["load_in_4bit"] is True
+
+    def test_openai_kind(self):
+        from conversation_dataset_generator.cli import build_backend
+        from conversation_dataset_generator.backend import OpenAIBackend
+
+        backend = build_backend(
+            kind="openai",
+            model_id="llama3.2:1b",
+            api_base_url="http://localhost:11434/v1",
+            api_key="test-key",
+        )
+        assert isinstance(backend, OpenAIBackend)
+        assert backend.model_id == "llama3.2:1b"
+        assert backend._client.api_key == "test-key"
+
+    def test_openai_kind_uses_env_var_when_key_omitted(self, monkeypatch):
+        from conversation_dataset_generator.cli import build_backend
+        from conversation_dataset_generator.backend import OpenAIBackend
+
+        monkeypatch.setenv("OPENAI_API_KEY", "env-key")
+        backend = build_backend(
+            kind="openai",
+            model_id="m",
+            api_base_url="http://x/v1",
+        )
+        assert isinstance(backend, OpenAIBackend)
+        assert backend._client.api_key == "env-key"

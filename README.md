@@ -14,7 +14,7 @@ python generate.py \
   --num-examples 5 --output-file conversations.jsonl
 ```
 
-Requires Python 3.10+ and an NVIDIA GPU with CUDA.
+Requires Python 3.10+. For the default `--backend hf`, you'll also need an NVIDIA GPU with CUDA. With `--backend openai` you can use any OpenAI-compatible server (LM Studio, Ollama, OpenAI itself, etc.) — see ["Using a remote OpenAI-compatible server"](#using-a-remote-openai-compatible-server-no-local-gpu-needed) below.
 
 ## Quick Start (Docker)
 
@@ -227,9 +227,13 @@ See `examples/` for sample batch configs.
 | `--model-id ID` | `Qwen/Qwen2.5-7B-Instruct` | HuggingFace model for generation |
 | `--max-new-tokens N` | 4096 | Max tokens per generation |
 | `--load-in-4bit` | off | Enable 4-bit quantization (requires bitsandbytes) |
+| `--backend {hf,openai}` | `hf` | Inference backend: local transformers (`hf`) or OpenAI-compatible HTTP server (`openai`) |
+| `--api-base-url URL` | `http://localhost:1234/v1` | Server URL when `--backend openai`. Ollama: `http://localhost:11434/v1` |
+| `--api-key KEY` | env `OPENAI_API_KEY` | API key for `--backend openai`. Falls back to env, then to `"not-needed"` |
 | `--upload-to-hub REPO` | — | Upload dataset to HuggingFace Hub |
 | `--force-upload` | off | Skip upload confirmation |
 | `--role-mapping MAP` | first=human, rest=gpt | Map speaker names to roles (e.g., `"Alice=human,Bob=gpt"`) |
+| `--dedup-threshold FLOAT` | off | Drop generated conversations with cosine similarity > this value to any prior. Typical range: 0.85–0.97. Requires `sentence-transformers`. |
 
 ## Output Format
 
@@ -301,6 +305,7 @@ Diversity:
   Distinct-1: 0.42 | Distinct-2: 0.81 | Distinct-3: 0.91
   Topic diversity: 0.72 (0=identical, 1=unrelated)
   Vocabulary richness (TTR): 0.68
+  Vendi Score: 87.4 / 100 (effective distinct conversations; closer to N = more diverse)
 
 Coherence:
   Turn-to-turn similarity: 0.47 (target: 0.3-0.6)
@@ -316,12 +321,110 @@ Speaker Distinctiveness:
 - **Turn coherence** — how well consecutive turns relate. Sweet spot: 0.3-0.6.
 - **Self-repetition** — fraction of near-duplicate turns within conversations.
 - **Speaker distinctiveness** — how different each speaker's language is from others.
+- **Vendi Score** — effective number of distinct conversations, computed from the eigenvalue entropy of the conversation-embedding similarity matrix. Range is `[1, N]` where `N` is the number of conversations: `1` means everything collapses to one effective example, `N` means every conversation is mutually distinct. Less sensitive than Distinct-N to surface-level paraphrases.
 
 Options:
 ```bash
 python evaluate.py data.jsonl --format json     # machine-readable
 python evaluate.py data.jsonl --no-embeddings   # skip embedding metrics (faster)
 ```
+
+## Using a remote OpenAI-compatible server (no local GPU needed)
+
+You can drive `generate.py` against any OpenAI-compatible inference server — LM Studio, Ollama, vLLM, TGI, or the real OpenAI API. This sidesteps local CUDA and lets you use models bigger than your VRAM.
+
+### LM Studio
+
+Start the server in LM Studio (Server tab, default port 1234), load a model, then:
+
+```bash
+python generate.py \
+  --backend openai \
+  --api-base-url http://localhost:1234/v1 \
+  --model-id "lmstudio-community/Qwen2.5-7B-Instruct-GGUF" \
+  --creative-brief "Sherlock and Watson debate AI" \
+  --num-examples 5 \
+  --output-file out.jsonl
+```
+
+### Ollama
+
+```bash
+ollama pull llama3.2:1b   # or any model you like
+python generate.py \
+  --backend openai \
+  --api-base-url http://localhost:11434/v1 \
+  --model-id llama3.2:1b \
+  --creative-brief "Two chefs argue about umami" \
+  --num-examples 5 \
+  --output-file out.jsonl
+```
+
+### OpenAI (or OpenRouter, Together, etc.)
+
+```bash
+export OPENAI_API_KEY=sk-...
+python generate.py \
+  --backend openai \
+  --api-base-url https://api.openai.com/v1 \
+  --model-id gpt-4o-mini \
+  --creative-brief "..." --num-examples 5 \
+  --output-file out.jsonl
+```
+
+When `--backend openai` is set, `--load-in-4bit` is silently ignored (quantization happens server-side). The default `--backend hf` preserves the original local-transformers behavior.
+
+## Web interface
+
+A full Gradio dashboard is available for interactive generation, evaluation, and dataset packaging.
+
+```bash
+python webapp.py
+```
+
+Opens at `http://127.0.0.1:7860`. Set defaults via env vars: `CDG_BACKEND`, `CDG_BASE_URL`, `CDG_MODEL_ID`.
+
+![Empty dashboard](docs/screenshots/dashboard-empty.png)
+
+### What the dashboard does
+
+| Panel | Purpose |
+|---|---|
+| **Backend** | Choose `hf` (local transformers) or `openai` (any OpenAI-compatible server). Set base URL, API key, model id, max-new-tokens, 4-bit quantization. |
+| **Personas** | Pick a curated preset, paste a creative brief and let the model brainstorm a cast, or write your own. Two name+description fields plus an "Add more" textarea for N-speaker conversations. A **Train speaker** dropdown picks which speaker maps to the `gpt` role for fine-tuning. |
+| **Scene** | Topic, scenario, style. Optional must-cover points. |
+| **Batch** | Number of conversations (1–50), per-example variation toggle, near-duplicate dedup threshold. |
+| **Run status / Diversity metrics** | After Generate, the right pane shows healthy/needs-attention headline, stat grid of metrics with their **targets** (effective uniqueness, distinct-2, topic diversity, speaker distinctness, turn coherence, self-repetition), and plain-English recommendations when something misses. |
+| **Auto-fix issues** | One-click dispatcher that applies every applicable fix: rewrites personas for orthogonal voice, broadens topic, sharpens scene, toggles variation, drops max-tokens — based on which metrics failed. |
+| **Dataset** | Downloadable ShareGPT JSONL, ready for fine-tuning. |
+| **Preview** | First three generated conversations rendered inline; full batch in the JSONL. |
+
+### Creative brief workflow
+
+![Brainstorm from a brief](docs/screenshots/brainstorm-success.png)
+
+Paste a one-line idea like `"A grizzled samurai mentors a sarcastic teenage hacker about honor in the digital age"`, click **Brainstorm**, and the model fills in personas, topic, scenario, and style. Edit if needed, then click Generate.
+
+### Metrics with targets, not just numbers
+
+![Healthy metrics](docs/screenshots/metrics-healthy.png)
+
+Each stat shows actual value vs. target with traffic-light coloring. Plain-English headline names the failing dimension when something's off ("NEEDS ATTENTION: distinct voices"). Recommendations explain how to fix — and the Auto-fix button applies them.
+
+### N-speaker conversations
+
+The Sci-fi crew preset packs four characters (captain, archaeologist, ship AI, engineer) into one conversation. Use the "Add more" textarea (`Name | Description` per line) to add as many speakers as you want.
+
+### What's CLI-only
+
+These features aren't in the webapp; use `generate.py` instead:
+
+- **`--continue-from data.jsonl`** — extend an existing conversation
+- **`--random-pairings`** with `--character-pool` / `--persona-desc-pool` YAML pools
+- **`--upload-to-hub REPO_ID`** — push the dataset to HuggingFace Hub
+- **`--persona1-search-term` / `--persona2-search-term`** — DuckDuckGo persona context for creative brief mode
+- **`--role-mapping "Name1=human,Name2=gpt"`** — manual role mapping (the webapp uses the simpler `Train speaker` dropdown)
+- **`batch_generate.py examples/batch_*.yaml`** — batch jobs with mixed modes
 
 ## For Contributors
 

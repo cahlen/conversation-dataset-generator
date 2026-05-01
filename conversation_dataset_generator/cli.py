@@ -9,7 +9,8 @@ import time
 import yaml
 from tqdm import tqdm
 
-from conversation_dataset_generator.models import DEFAULT_MODEL_ID
+from conversation_dataset_generator.backend import make_backend
+from conversation_dataset_generator.models import DEFAULT_MODEL_ID, load_model_and_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +186,35 @@ def build_parser() -> argparse.ArgumentParser:
     general.add_argument("--force-upload", action="store_true")
     general.add_argument("--role-mapping", type=str, default=None,
                          help="Role mapping: 'p1=human,p2=gpt' or 'p1=gpt,p2=human'")
+    general.add_argument(
+        "--backend", type=str, default="hf", choices=["hf", "openai"],
+        help="Inference backend: 'hf' (local transformers, default) or "
+             "'openai' (OpenAI-compatible HTTP server like LM Studio or Ollama).",
+    )
+    general.add_argument(
+        "--api-base-url", type=str, default="http://localhost:1234/v1",
+        help="Base URL for the OpenAI-compatible server. "
+             "LM Studio: http://localhost:1234/v1 (default). "
+             "Ollama: http://localhost:11434/v1.",
+    )
+    general.add_argument(
+        "--api-key", type=str, default=None,
+        help="API key for the OpenAI-compatible server. "
+             "If unset, falls back to env OPENAI_API_KEY then 'not-needed'.",
+    )
+
+    def _ratio(value: str) -> float:
+        x = float(value)
+        if not 0.0 <= x <= 1.0:
+            raise argparse.ArgumentTypeError(f"must be in [0.0, 1.0], got {x}")
+        return x
+
+    general.add_argument(
+        "--dedup-threshold", type=_ratio, default=None, metavar="FLOAT",
+        help="Drop generated conversations with cosine similarity > this value to "
+             "any prior conversation in the run. Typical range: 0.85-0.97. "
+             "Off by default. Requires sentence-transformers.",
+    )
 
     return parser
 
@@ -235,6 +265,91 @@ def _require(args, keys: list[str], parser) -> None:
         parser.error(f"Missing required arguments: {' '.join(missing)}")
 
 
+def build_backend(
+    kind: str,
+    model_id: str,
+    *,
+    load_in_4bit: bool = False,
+    api_base_url: str | None = None,
+    api_key: str | None = None,
+):
+    """Construct a ChatBackend from raw config values.
+
+    Used by both the CLI (via build_backend_from_args) and the web UI.
+    For kind="hf", load_in_4bit applies. For kind="openai", api_base_url is
+    required and api_key falls back to OPENAI_API_KEY env, then to "not-needed".
+    """
+    if kind == "hf":
+        pipeline, tokenizer = load_model_and_pipeline(
+            model_id=model_id, load_in_4bit=load_in_4bit,
+        )
+        return make_backend("hf", pipeline=pipeline, tokenizer=tokenizer)
+
+    if model_id == DEFAULT_MODEL_ID:
+        logger.warning(
+            "--backend openai is set but --model-id is the HF default %r. "
+            "Most OpenAI-compatible servers won't recognize this; pass an "
+            "explicit --model-id (e.g., 'llama3.2:1b' for Ollama).",
+            model_id,
+        )
+
+    resolved_key = api_key or os.environ.get("OPENAI_API_KEY")
+    return make_backend(
+        "openai",
+        model_id=model_id,
+        base_url=api_base_url,
+        api_key=resolved_key,
+    )
+
+
+def build_backend_from_args(args):
+    """Construct a ChatBackend from parsed CLI args (thin wrapper around build_backend)."""
+    return build_backend(
+        kind=args.backend,
+        model_id=args.model_id,
+        load_in_4bit=args.load_in_4bit,
+        api_base_url=args.api_base_url,
+        api_key=args.api_key,
+    )
+
+
+def _dedup_check(turns, embedding_model, prior_embeddings, threshold):
+    """Decide whether a freshly-generated conversation is a near-duplicate.
+
+    Returns True if the conversation should be DROPPED (too similar to a prior).
+    Returns False otherwise; on a keep, the new embedding is appended to
+    prior_embeddings as a side effect.
+
+    Disabled (returns False) when embedding_model or threshold is None.
+    """
+    if embedding_model is None or threshold is None:
+        return False
+    from conversation_dataset_generator.evaluation import is_near_duplicate
+    text = " ".join(t["value"] for t in turns)
+    new_emb = embedding_model.encode([text], show_progress_bar=False)[0]
+    if is_near_duplicate(new_emb, prior_embeddings, threshold=threshold):
+        return True
+    prior_embeddings.append(new_emb)
+    return False
+
+
+def _load_dedup_model(threshold):
+    """Lazy-load the sentence-transformers model used for dedup. Returns None
+    if dedup is disabled or the model cannot be loaded."""
+    if threshold is None:
+        return None
+    try:
+        from sentence_transformers import SentenceTransformer
+    except ImportError:
+        logger.warning(
+            "--dedup-threshold set but sentence-transformers is not installed. "
+            "Dedup disabled."
+        )
+        return None
+    logger.info("Loading embedding model for dedup: all-MiniLM-L6-v2")
+    return SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+
+
 def main():
     """Main entry point for the conversation dataset generator."""
     script_start = time.monotonic()
@@ -253,12 +368,8 @@ def main():
     mode = detect_mode(args, parser)
     logger.info("Mode: %s", mode)
 
-    # --- Load model ---
-    from conversation_dataset_generator.models import load_model_and_pipeline
-
-    text_generator, tokenizer = load_model_and_pipeline(
-        model_id=args.model_id, load_in_4bit=args.load_in_4bit,
-    )
+    # --- Build backend ---
+    backend = build_backend_from_args(args)
 
     # --- Imports ---
     from conversation_dataset_generator.generation import (
@@ -306,6 +417,9 @@ def main():
 
         conversations = []
         total_llm_time = 0.0
+        dedup_model = _load_dedup_model(args.dedup_threshold)
+        dedup_priors = []
+        dedup_drops = 0
 
         for i in tqdm(range(args.num_examples), desc="Continuing", unit="example"):
             start = time.monotonic()
@@ -313,12 +427,16 @@ def main():
                 personas=personas, prior_turns=conv_data["turns"],
                 topic=conv_data["topic"], scenario=conv_data["scenario"],
                 style=conv_data["style"],
-                generator_pipeline=text_generator, tokenizer=tokenizer,
+                backend=backend,
                 max_new_tokens=args.max_new_tokens, role_mapping=role_mapping,
             )
             total_llm_time += time.monotonic() - start
 
             if turns:
+                if _dedup_check(turns, dedup_model, dedup_priors, args.dedup_threshold):
+                    dedup_drops += 1
+                    logger.info("Dropped near-duplicate continuation %d", i + 1)
+                    continue
                 conversations.append({
                     "turns": turns,
                     "topic": conv_data["topic"],
@@ -332,8 +450,10 @@ def main():
         if mode == "brief":
             variation_enabled = True
             generated = generate_args_from_brief_safe(
-                args.creative_brief, text_generator, tokenizer,
-                args.persona1_search_term, args.persona2_search_term,
+                args.creative_brief,
+                backend=backend,
+                persona1_search_term=args.persona1_search_term,
+                persona2_search_term=args.persona2_search_term,
             )
             if generated is None:
                 logger.error("Failed to generate args from brief. Exiting.")
@@ -400,6 +520,9 @@ def main():
         # --- Generation loop ---
         conversations = []
         total_llm_time = 0.0
+        dedup_model = _load_dedup_model(args.dedup_threshold)
+        dedup_priors = []
+        dedup_drops = 0
 
         for i in tqdm(range(args.num_examples), desc="Generating", unit="example"):
             personas_for_this_conv = personas
@@ -438,7 +561,7 @@ def main():
                     persona2=p2_name, persona2_desc=p2_desc,
                     initial_topic=initial_topic, initial_scenario=initial_scenario,
                     initial_style=initial_style,
-                    generator_pipeline=text_generator, tokenizer=tokenizer,
+                    backend=backend,
                     original_brief=args.creative_brief if mode == "brief" else None,
                 )
                 if variation:
@@ -451,7 +574,7 @@ def main():
             turns = generate_conversation(
                 topic=current_topic, personas=personas_for_this_conv,
                 scenario=current_scenario, style=current_style,
-                generator_pipeline=text_generator, tokenizer=tokenizer,
+                backend=backend,
                 max_new_tokens=args.max_new_tokens,
                 include_points=current_include_points,
                 role_mapping=role_mapping,
@@ -459,6 +582,10 @@ def main():
             total_llm_time += time.monotonic() - start
 
             if turns:
+                if _dedup_check(turns, dedup_model, dedup_priors, args.dedup_threshold):
+                    dedup_drops += 1
+                    logger.info("Dropped near-duplicate conversation %d", i + 1)
+                    continue
                 conversations.append({
                     "turns": turns,
                     "topic": current_topic,
@@ -470,6 +597,8 @@ def main():
     # --- Write output ---
     num_generated = len(conversations)
     logger.info("Generated %d/%d conversations", num_generated, args.num_examples)
+    if 'dedup_drops' in locals() and dedup_drops:
+        logger.info("Dedup dropped %d near-duplicate conversations", dedup_drops)
 
     if not conversations:
         logger.error("No conversations generated. Exiting.")
